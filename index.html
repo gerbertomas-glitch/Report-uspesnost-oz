@@ -90,20 +90,36 @@
             CheckCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
         };
 
-        // --- UKÁZKOVÁ VZOROVÁ DATA ---
+        // --- UKÁZKOVÁ VZOROVÁ DATA (Se zástupci CZK, EUR a HUF) ---
         const SAMPLE_DATA = [
-            { title: "AeroSpace s.r.o. - Implementace ERP", value: 350000, currency: "CZK", owner: "Jan Novák", stage: "SIGNED ORDER", status: "open", lostReason: "", addTime: "2026-05-12", operator: "Knebelová Ivana" },
-            { title: "TechSolutions a.s. - Roční licence cloud", value: 120000, currency: "CZK", owner: "Marie Svobodová", stage: "PAID", status: "won", lostReason: "", addTime: "2026-04-10", operator: "Tiefenbachová Michaela" },
-            { title: "SolarPower Group - Dodávka fotovoltaiky", value: 850000, currency: "CZK", owner: "Petr Černý", stage: "MEETING ARRANGED", status: "open", lostReason: "", addTime: "2026-06-01", operator: "Kratochvílová Pavla" },
-            { title: "E-commerce Hub - SEO & PPC kampaň", value: 45000, currency: "CZK", owner: "Jana Kučerová", stage: "IN PROCESS", status: "won", lostReason: "", addTime: "2026-05-20", operator: "Sýkorová Petra" },
-            { title: "Prague Logistics - Fleet management HW", value: 620000, currency: "CZK", owner: "Pavel Dvořák", stage: "MEETING ARRANGED", status: "lost", lostReason: "Vysoká cena", addTime: "2026-03-15", operator: "Zug Zuzana" },
-            { title: "SaaS Start - Konzultační dny a analýza", value: 75000, currency: "CZK", owner: "Jan Novák", stage: "CONDITIONS SENT", status: "won", lostReason: "", addTime: "2026-05-02", operator: "Knebelová Ivana" },
-            { title: "Stavby Praha - Revize zabezpečení", value: 180000, currency: "CZK", owner: "Marie Svobodová", stage: "ORDER SENT", status: "open", lostReason: "", addTime: "2026-04-18", operator: "Kratochvílová Pavla" }
+            { "Deal - Název": "AeroSpace s.r.o. - Implementace ERP", "Deal - Hodnota": "350000 CZK", "Deal - Obchodník": "Jan Novák", "Deal - Fáze": "SIGNED ORDER", "Deal - Stav": "open", "Deal - Operátor": "Knebelová Ivana" },
+            { "Deal - Název": "TechSolutions a.s. - Roční licence cloud", "Deal - Hodnota": "4800 EUR", "Deal - Obchodník": "Marie Svobodová", "Deal - Fáze": "PAID", "Deal - Stav": "won", "Deal - Operátor": "Tiefenbachová Michaela" },
+            { "Deal - Název": "SolarPower Group - Dodávka fotovoltaiky", "Deal - Hodnota": "850000 CZK", "Deal - Obchodník": "Petr Černý", "Deal - Fáze": "MEETING ARRANGED", "Deal - Stav": "open", "Deal - Operátor": "Kratochvílová Pavla" },
+            { "Deal - Název": "E-commerce Hub - SEO & PPC kampaň", "Deal - Hodnota": "45000 CZK", "Deal - Obchodník": "Jana Kučerová", "Deal - Fáze": "IN PROCESS", "Deal - Stav": "won", "Deal - Operátor": "Sýkorová Petra" },
+            { "Deal - Název": "Prague Logistics - Fleet management HW", "Deal - Hodnota": "25000 EUR", "Deal - Obchodník": "Pavel Dvořák", "Deal - Fáze": "MEETING ARRANGED", "Deal - Stav": "lost", "Deal - Operátor": "Zug Zuzana" },
+            { "Deal - Název": "Budapest Trade - Distribuce licencí", "Deal - Hodnota": "8500000 HUF", "Deal - Obchodník": "Jan Novák", "Deal - Fáze": "CONDITIONS SENT", "Deal - Stav": "won", "Deal - Operátor": "Knebelová Ivana" },
+            { "Deal - Název": "Stavby Praha - Revize zabezpečení", "Deal - Hodnota": "180000 CZK", "Deal - Obchodník": "Marie Svobodová", "Deal - Fáze": "ORDER SENT", "Deal - Stav": "open", "Deal - Operátor": "Kratochvílová Pavla" }
         ];
 
         // --- POMOCNÉ FORMÁTOVÁNÍ MĚNY ---
         const formatCZK = (num) => {
             return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(num);
+        };
+
+        // --- FORMÁTOVÁNÍ PŮVODNÍ ČÁSTKY S PŘEPOČTEM PRO TABULKU ---
+        const formatOriginalValue = (deal) => {
+            if (deal.originalCurrency && deal.originalCurrency !== 'CZK') {
+                let formattedOrig = '';
+                if (deal.originalCurrency === 'EUR') {
+                    formattedOrig = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(deal.originalValue);
+                } else if (deal.originalCurrency === 'HUF') {
+                    formattedOrig = new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(deal.originalValue);
+                } else {
+                    formattedOrig = `${deal.originalValue} ${deal.originalCurrency}`;
+                }
+                return `${formattedOrig} <span class="text-[11px] text-slate-400 block md:inline md:ml-1">(~${formatCZK(deal.value)})</span>`;
+            }
+            return formatCZK(deal.value);
         };
 
         // --- ZOBRAZENÍ NOTIFIKACÍ ---
@@ -162,8 +178,15 @@
             return s.includes('order sent') || s.includes('objednávka odeslána');
         };
 
-        // --- INTELIGENTNÍ NORMALIZAČNÍ FUNKCE PRO PIPEDRIVE EXPORTY ---
+        // --- INTELIGENTNÍ NORMALIZAČNÍ FUNKCE PRO PIPEDRIVE EXPORTY S PŘEPOČTEM MĚN ---
         const normalizePipedriveData = (rawRows) => {
+            // Aktuální fixní směnný kurz pro sjednocení na CZK
+            const EXCHANGE_RATES = {
+                'CZK': 1.0,
+                'EUR': 25.20,  // 1 EUR = 25,20 Kč
+                'HUF': 0.063   // 100 HUF = 6,30 Kč (1 HUF = 0,063 Kč)
+            };
+
             return rawRows.map(row => {
                 const getVal = (possibleKeys) => {
                     const key = Object.keys(row).find(k => {
@@ -178,8 +201,35 @@
 
                 const title = getVal(['Deal - Název', 'Název', 'Title', 'Subject', 'Deal Name', 'Obchod']) || 'Bez názvu';
                 const rawValue = getVal(['Deal - Hodnota', 'Hodnota', 'Value', 'Amount', 'Částka']);
-                const currency = getVal(['Měna', 'Currency']) || 'CZK';
                 
+                // Určení původní měny (hledá ve sloupci měny, popř. přímo v řetězci hodnoty)
+                let detectedCurrency = 'CZK';
+                const currencyCol = getVal(['Měna', 'Currency', 'Deal - Měna', 'Deal - Currency']);
+                if (currencyCol) {
+                    const cUpper = String(currencyCol).toUpperCase().trim();
+                    if (cUpper.includes('EUR') || cUpper.includes('€')) detectedCurrency = 'EUR';
+                    else if (cUpper.includes('HUF') || cUpper.includes('FT')) detectedCurrency = 'HUF';
+                } else if (rawValue !== null && rawValue !== undefined) {
+                    const valStr = String(rawValue).toUpperCase().trim();
+                    if (valStr.includes('EUR') || valStr.includes('€')) detectedCurrency = 'EUR';
+                    else if (valStr.includes('HUF') || valStr.includes('FT')) detectedCurrency = 'HUF';
+                }
+
+                // Extrakce pouze číselné hodnoty
+                let originalValue = 0;
+                if (rawValue !== null && rawValue !== undefined) {
+                    if (typeof rawValue === 'number') {
+                        originalValue = rawValue;
+                    } else {
+                        originalValue = parseFloat(String(rawValue).replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    }
+                }
+                if (isNaN(originalValue)) originalValue = 0;
+
+                // Přepočet na CZK podle definovaného směnného kurzu
+                const rate = EXCHANGE_RATES[detectedCurrency] || 1.0;
+                const valueInCZK = originalValue * rate;
+
                 const owner = getVal(['Deal - Vlastník', 'Vlastník', 'Owner', 'Přiřazeno uživateli']) || 'Neznámý';
                 const agent = getVal(['Deal - Obchodník', 'Obchodník', 'Salesperson']) || owner;
                 const operator = getVal(['Deal - Operátor', 'Operátor', 'Operator']) || '';
@@ -188,16 +238,6 @@
                 const statusRaw = String(getVal(['Deal - Stav', 'Stav', 'Status']) || 'open').toLowerCase().trim();
                 const lostReason = getVal(['Důvod ztráty', 'Lost reason', 'Důvody ztráty', 'Důvod prohry']) || '';
                 const addTime = getVal(['Čas vytvoření', 'Add time', 'Datum vytvoření', 'Created', 'Vytvořeno']) || '';
-
-                let value = 0;
-                if (rawValue !== null && rawValue !== undefined) {
-                    if (typeof rawValue === 'number') {
-                        value = rawValue;
-                    } else {
-                        value = parseFloat(String(rawValue).replace(/[^\d.,-]/g, '').replace(',', '.'));
-                    }
-                }
-                if (isNaN(value)) value = 0;
 
                 let status = 'open';
                 if (statusRaw.includes('won') || statusRaw.includes('vyhr') || statusRaw.includes('získ') || statusRaw.includes('úspěch')) {
@@ -208,8 +248,9 @@
 
                 return { 
                     title, 
-                    value, 
-                    currency, 
+                    value: valueInCZK, // Primární hodnota je pro všechny manažerské výpočty sjednocená v CZK
+                    originalValue,
+                    originalCurrency: detectedCurrency,
                     owner: agent,
                     originalOwner: owner,
                     operator,
@@ -392,11 +433,12 @@
 
         // --- MANIPULACE SE STAVEM ---
         const loadSample = () => {
-            state.deals = SAMPLE_DATA;
+            // Musíme vzorová data nechat normalizovat, aby se přepočetly měny
+            state.deals = normalizePipedriveData(SAMPLE_DATA);
             state.ownerFilter = 'all';
             state.statusFilter = 'all';
             state.searchTerm = '';
-            showNotification("Vzorová data byla úspěšně načtena!", "success");
+            showNotification("Vzorová data byla úspěšně načtena s přepočtem měn!", "success");
             render();
         };
 
@@ -448,7 +490,7 @@
                                     ${Icons.FileSpreadsheet}
                                 </div>
                                 <p class="text-lg font-semibold text-slate-800 mb-2">Přetáhněte sem exportovaný soubor</p>
-                                <p class="text-sm text-slate-500 mb-6">Podporujeme formáty XLSX, XLS a CSV (včetně české diakritiky)</p>
+                                <p class="text-sm text-slate-500 mb-6">Podporujeme CZK, EUR i HUF s automatickým přepočtem</p>
                                 
                                 <div class="flex flex-wrap gap-4 justify-center pointer-events-auto">
                                     <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
@@ -506,6 +548,24 @@
                 const data = getStatsAndFilteredData();
 
                 mainContent.innerHTML = `
+                    <!-- PANEL PRO KURZOVNÍ LÍSTEK (INFO O PŘEPOČTU) -->
+                    <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
+                        <div class="flex items-center gap-2.5">
+                            <span class="p-2 bg-slate-700 rounded-lg text-amber-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+                            </span>
+                            <div>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Automatický přepočet měn</h4>
+                                <p class="text-xs text-slate-300">Všechny finanční hodnoty v grafech a přehledech byly sjednoceny do měny <strong>CZK (Kč)</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs font-mono shrink-0 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-700">
+                            <span class="text-emerald-400">1 EUR = 25,20 CZK</span>
+                            <span class="text-slate-600">|</span>
+                            <span class="text-emerald-400">100 HUF = 6,30 CZK</span>
+                        </div>
+                    </div>
+
                     <!-- FILTRY A NAVIGACE -->
                     <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-8 flex flex-col gap-5">
                         <!-- Záložky -->
@@ -576,7 +636,7 @@
                         </div>
                     </div>
 
-                    <!-- KPI KARTY S METRIKAMI CALL CENTRA -->
+                    <!-- KPI KARTY S METRIKAMI CALL CENTRA (PŘEPOČTENO V CZK) -->
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                             <div>
@@ -765,10 +825,10 @@
                                             <tr class="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider pb-3">
                                                 <th class="py-3 px-4">Obchodník</th>
                                                 <th class="py-3 px-4">Celkem případů</th>
-                                                <th class="py-3 px-4 text-emerald-600 font-semibold">Objem konverzí</th>
-                                                <th class="py-3 px-4 text-emerald-600">Počet konverzí</th>
-                                                <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem</th>
-                                                <th class="py-3 px-4">Win Rate %</th>
+                                                <th class="py-3 px-4 text-emerald-600 font-semibold">Objem konverzí (CZK)</th>
+                                                <th class="py-3 px-4 text-emerald-600 font-semibold">Počet konverzí</th>
+                                                <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem (CZK)</th>
+                                                <th class="py-3 px-4 font-semibold text-slate-700">Win Rate %</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-slate-50 text-slate-700">
@@ -807,9 +867,9 @@
                                                 <tr class="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider pb-3">
                                                     <th class="py-3 px-4">Operátor</th>
                                                     <th class="py-3 px-4">Zajištěno obchodů</th>
-                                                    <th class="py-3 px-4 text-emerald-600 font-semibold">Získaný objem</th>
-                                                    <th class="py-3 px-4 text-emerald-600">Počet konverzí</th>
-                                                    <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem</th>
+                                                    <th class="py-3 px-4 text-emerald-600 font-semibold">Získaný objem (CZK)</th>
+                                                    <th class="py-3 px-4 text-emerald-600 font-semibold">Počet konverzí</th>
+                                                    <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem (CZK)</th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-slate-50 text-slate-700">
@@ -844,7 +904,7 @@
                                             <th class="py-4 px-4">Obchodník</th>
                                             <th class="py-4 px-4">Operátor</th>
                                             <th class="py-4 px-4">Fáze</th>
-                                            <th class="py-4 px-4 text-right">Hodnota</th>
+                                            <th class="py-4 px-4 text-right">Hodnota (Původní & CZK)</th>
                                             <th class="py-4 px-4 text-center">Vyhodnocení</th>
                                         </tr>
                                     </thead>
@@ -863,7 +923,7 @@
                                                         ${deal.stage}
                                                     </span>
                                                 </td>
-                                                <td class="py-4 px-4 text-right font-bold text-slate-900">${formatCZK(deal.value)}</td>
+                                                <td class="py-4 px-4 text-right font-bold text-slate-900">${formatOriginalValue(deal)}</td>
                                                 <td class="py-4 px-4 text-center">
                                                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
                                                         isConversionPhase(deal.stage) ? 'bg-emerald-100 text-emerald-800' :
