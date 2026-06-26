@@ -5,514 +5,771 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manažerský Pipedrive Report</title>
     
-    <!-- Tailwind CSS (pro vzhled) -->
+    <!-- Tailwind CSS (pro prémiový vzhled) -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Knihovna pro čtení Excel/CSV souborů -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <!-- React a ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    
-    <!-- Babel (pro překlad JSX kódu v prohlížeči) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Knihovna pro čtení Excel/CSV souborů (Bezpečná CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-        body { background-color: #f8fafc; }
+        body { 
+            background-color: #f8fafc; 
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="min-h-screen pb-16">
 
-    <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+    <!-- NOTIFIKAČNÍ PANEL -->
+    <div id="notification-container" class="fixed top-5 right-5 z-50 pointer-events-none"></div>
 
-        // --- IKONY (Převedeno z Lucide React pro fungování v čistém HTML) ---
-        const Upload = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
-        const BarChart3 = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>;
-        const Users = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
-        const PhoneCall = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6A5 5 0 0 1 18 10"/></svg>;
-        const TrendingUp = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
-        const FileSpreadsheet = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
-        const AlertCircle = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
-        const XCircle = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>;
-        const Package = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>;
-        const Target = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+    <!-- HLAVNÍ STRUKTURA STRÁNKY -->
+    <div id="app">
+        <!-- HORNÍ LIŠTA -->
+        <header class="bg-slate-900 text-white py-5 px-6 md:px-12 shadow-md mb-8">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500 rounded-lg text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight">Manažerský Pipedrive Report</h1>
+                        <p class="text-xs text-slate-400">Okamžitá vizualizace obchodních výsledků a pipeline</p>
+                    </div>
+                </div>
 
+                <div id="header-actions" class="flex items-center gap-3">
+                    <!-- Tlačítka se doplní dynamicky podle stavu dat -->
+                </div>
+            </div>
+        </header>
 
-        // --- HLAVNÍ APLIKACE ---
-        function App() {
-          const [data, setData] = useState(null);
-          const [loading, setLoading] = useState(false);
-          const [error, setError] = useState(null);
-          const [activeTab, setActiveTab] = useState('overview');
-          const [xlsxLoaded, setXlsxLoaded] = useState(false);
+        <!-- HLAVNÍ OBSAH -->
+        <main id="main-content" class="max-w-7xl mx-auto px-4 md:px-8">
+            <!-- Sem se bude vykreslovat rozhraní -->
+        </main>
+    </div>
 
-          useEffect(() => {
-            if (window.XLSX) {
-              setXlsxLoaded(true);
-              return;
-            }
-            const script = document.createElement('script');
-            script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-            script.async = true;
-            script.onload = () => setXlsxLoaded(true);
-            script.onerror = () => setError("Nepodařilo se načíst knihovnu pro čtení Excelu.");
-            document.body.appendChild(script);
-          }, []);
+    <!-- ČISTÝ JAVASCRIPT BEZ NUTNOSTI KOMPILACE -->
+    <script>
+        // --- STAV APLIKACE (State) ---
+        const state = {
+            deals: [],
+            activeTab: 'dashboard',
+            searchTerm: '',
+            ownerFilter: 'all',
+            statusFilter: 'all',
+            dragActive: false
+        };
 
-          const normalizeStr = (str) => {
-            if (!str) return '';
-            return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-          };
+        // --- IKONY V SVG FORMÁTU ---
+        const Icons = {
+            Upload: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>',
+            BarChart: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
+            Users: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+            FileSpreadsheet: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>',
+            Dollar: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+            TrendingUp: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+            Search: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+            Refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+            Info: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y1="12"/><line x1="12" y1="8" x2="12.01" y1="8"/></svg>',
+            CheckCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+        };
 
-          const parseHodnota = (val) => {
-            if (typeof val === 'number') return val;
-            if (!val) return 0;
-            let s = String(val).replace(/\s/g, ''); 
-            s = s.replace(/[^\d.,-]/g, ''); 
-            if (!s) return 0;
+        // --- UKÁZKOVÁ VZOROVÁ DATA ---
+        const SAMPLE_DATA = [
+            { title: "AeroSpace s.r.o. - Implementace ERP", value: 350000, currency: "CZK", owner: "Jan Novák", stage: "Vyjednávání", status: "open", lostReason: "", addTime: "2026-05-12" },
+            { title: "TechSolutions a.s. - Roční licence cloud", value: 120000, currency: "CZK", owner: "Marie Svobodová", stage: "Uzavřeno", status: "won", lostReason: "", addTime: "2026-04-10" },
+            { title: "SolarPower Group - Dodávka fotovoltaiky", value: 850000, currency: "CZK", owner: "Petr Černý", stage: "Nabídka", status: "open", lostReason: "", addTime: "2026-06-01" },
+            { title: "E-commerce Hub - SEO & PPC kampaň", value: 45000, currency: "CZK", owner: "Jana Kučerová", stage: "Uzavřeno", status: "won", lostReason: "", addTime: "2026-05-20" },
+            { title: "Prague Logistics - Fleet management HW", value: 620000, currency: "CZK", owner: "Pavel Dvořák", stage: "Kontakt", status: "lost", lostReason: "Vysoká cena", addTime: "2026-03-15" },
+            { title: "SaaS Start - Konzultační dny a analýza", value: 75000, currency: "CZK", owner: "Jan Novák", stage: "Uzavřeno", status: "won", lostReason: "", addTime: "2026-05-02" },
+            { title: "Stavby Praha - Revize zabezpečení", value: 180000, currency: "CZK", owner: "Marie Svobodová", stage: "Kvalifikace", status: "lost", lostReason: "Konkurence byla rychlejší", addTime: "2026-04-18" },
+            { title: "MedTech Labs - Upgrade softwaru", value: 290000, currency: "CZK", owner: "Petr Černý", stage: "Prezentace", status: "open", lostReason: "", addTime: "2026-05-28" },
+            { title: "GreenFood s.r.o. - Branding & Kompletní web", value: 110000, currency: "CZK", owner: "Jana Kučerová", stage: "Uzavřeno", status: "won", lostReason: "", addTime: "2026-03-29" },
+            { title: "AutoServis Express - Integrace SMS brány", value: 35000, currency: "CZK", owner: "Pavel Dvořák", stage: "Uzavřeno", status: "won", lostReason: "", addTime: "2026-05-15" },
+            { title: "CyberSec s.r.o. - Penetrační testy", value: 450000, currency: "CZK", owner: "Jan Novák", stage: "Nabídka", status: "lost", lostReason: "Rozhodnutí odloženo", addTime: "2026-02-10" },
+            { title: "BakeHouse - Pokladní a skladové systémy", value: 95000, currency: "CZK", owner: "Marie Svobodová", stage: "Vyjednávání", status: "open", lostReason: "", addTime: "2026-06-05" }
+        ];
+
+        // --- POMOCNÉ FORMÁTOVÁNÍ MĚNY ---
+        const formatCZK = (num) => {
+            return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(num);
+        };
+
+        // --- ZOBRAZENÍ NOTIFIKACÍ ---
+        const showNotification = (message, type = 'success') => {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = `mb-3 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-white font-medium transition duration-300 transform translate-y-2 opacity-0 pointer-events-auto ${
+                type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600'
+            }`;
+            toast.innerHTML = `
+                ${Icons.CheckCircle}
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
             
-            let lastComma = s.lastIndexOf(',');
-            let lastDot = s.lastIndexOf('.');
-            
-            if (lastComma > -1 && lastDot > -1) {
-              if (lastComma > lastDot) {
-                s = s.replace(/\./g, '').replace(',', '.');
-              } else {
-                s = s.replace(/,/g, '');
-              }
-            } else if (lastComma > -1) {
-              s = s.replace(',', '.');
-            }
-            return parseFloat(s) || 0;
-          };
+            // Animace dovnitř
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
 
-          const processParsedData = (rows) => {
-            if (!rows || rows.length < 2) throw new Error("Soubor neobsahuje dostatek dat.");
+            // Odstranění po 4s
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        };
 
-            const headers = rows[0].map(h => normalizeStr(h));
-            const getIdx = (str) => headers.findIndex(h => h.includes(normalizeStr(str)));
-            
-            const idxObchodnik = getIdx('obchodnik');
-            const idxVlastnik = getIdx('vlastnik'); // Pojistka
-            const idxOperator = getIdx('operator');
-            const idxHodnota = getIdx('hodnota');
-            const idxMena = getIdx('mena') !== -1 ? getIdx('mena') : getIdx('currency');
-            const idxFaze = getIdx('faze') !== -1 ? getIdx('faze') : getIdx('phase');
-            const idxStav = getIdx('stav') !== -1 ? getIdx('stav') : getIdx('status');
-            const idxStitek = getIdx('stitek') !== -1 ? getIdx('stitek') : getIdx('label');
-
-            if (idxFaze === -1) {
-               throw new Error("Nepodařilo se najít sloupec 'Fáze'. Zkontrolujte hlavičky v exportu.");
-            }
-
-            const parsedData = [];
-            for (let i = 1; i < rows.length; i++) {
-              const row = rows[i];
-              if (row && row.length > 0 && row.some(cell => cell !== undefined && cell !== null && cell !== '')) {
-                
-                let rawHodnota = String(row[idxHodnota] || '0');
-                let hodnotaNum = parseHodnota(row[idxHodnota]);
-                
-                let mena = 'CZK';
-                if (idxMena !== -1 && row[idxMena]) {
-                  mena = String(row[idxMena]).toUpperCase().trim();
-                } else {
-                  if (rawHodnota.toUpperCase().includes('EUR')) mena = 'EUR';
-                  if (rawHodnota.toUpperCase().includes('HUF')) mena = 'HUF';
-                  if (rawHodnota.toUpperCase().includes('CZK')) mena = 'CZK';
-                }
-
-                let stitky = [];
-                if (idxStitek !== -1 && row[idxStitek]) {
-                  stitky = String(row[idxStitek]).split(',').map(s => s.trim()).filter(s => s);
-                }
-
-                // Chytré přiřazení jména s pojistkou přes vlastníka
-                let obchJmeno = '';
-                if (idxObchodnik !== -1) obchJmeno = String(row[idxObchodnik] || '');
-                if ((!obchJmeno || obchJmeno === 'undefined') && idxVlastnik !== -1) {
-                    obchJmeno = String(row[idxVlastnik] || '');
-                }
-                obchJmeno = obchJmeno.trim() || 'Neznámý';
-
-                let opJmeno = idxOperator !== -1 ? String(row[idxOperator] || '').trim() : 'Neznámý';
-
-                parsedData.push({
-                  obchodnik: obchJmeno,
-                  operator: opJmeno,
-                  hodnota: hodnotaNum,
-                  mena: mena,
-                  faze: normalizeStr(row[idxFaze]),
-                  stav: normalizeStr(row[idxStav]),
-                  stitky: stitky
-                });
-              }
-            }
-            setData(parsedData);
-          };
-
-          const handleFileUpload = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            if (!xlsxLoaded) return setError("Knihovna se ještě načítá.");
-
-            setLoading(true);
-            setError(null);
-
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              try {
-                const data = new Uint8Array(event.target.result);
-                const workbook = window.XLSX.read(data, { type: 'array' });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = window.XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                processParsedData(jsonData);
-              } catch (err) {
-                setError("Chyba při čtení souboru. Ujistěte se, že jde o platný Pipedrive export.");
-              } finally {
-                setLoading(false);
-              }
-            };
-            reader.onerror = () => { setError("Chyba prohlížeče."); setLoading(false); };
-            reader.readAsArrayBuffer(file);
-          };
-
-          const stats = useMemo(() => {
-            if (!data) return null;
-
-            const obchodnici = {};
-            const operatori = {};
-            const celkoveHodnoty = {};
-            let celkemDealu = 0;
-            let celkemUspech = 0;
-
-            // Přidaná ošetření na překlepy (commision vs commission)
-            const SUCCESS_PHASES = ['signed order', 'invoice sent', 'regular payment', 'partial payment', 'overdue', 'paid deal', 'commission status', 'commision status'];
-            const CONDITIONS_PHASES = ['conditions sent'];
-            const ORDER_SENT_PHASES = ['order sent'];
-            const IN_PROCESS_PHASES = ['in process'];
-
-            const getPhaseCategory = (faze, stav) => {
-              // 1. ZTRACENÉ: Absolutní priorita. Pokud je deal ztracený, nepočítá se jako úspěch.
-              if (stav.includes('ztracen') || stav === 'lost') return 'lost';
-              
-              // 2. ÚSPĚCH: Otevřené/vyhrané dealy v těchto fázích
-              if (stav.includes('vyhran') || stav === 'won') return 'uspech';
-              if (SUCCESS_PHASES.some(sf => faze.includes(sf))) return 'uspech';
-              
-              // 3. FÁZE V ŘEŠENÍ
-              if (ORDER_SENT_PHASES.some(of => faze.includes(of))) return 'order_sent';
-              if (CONDITIONS_PHASES.some(cf => faze.includes(cf))) return 'conditions_sent';
-              if (IN_PROCESS_PHASES.some(ip => faze.includes(ip))) return 'in_process';
-              
-              // 4. OSTATNÍ (Nově sjednané, meeting arranged...)
-              return 'meeting_arranged';
-            };
-
-            data.forEach(deal => {
-              celkemDealu++;
-              const kat = getPhaseCategory(deal.faze, deal.stav);
-              if (kat === 'uspech') celkemUspech++;
-
-              if (kat !== 'lost' && deal.hodnota > 0) {
-                celkoveHodnoty[deal.mena] = (celkoveHodnoty[deal.mena] || 0) + deal.hodnota;
-              }
-
-              if (!obchodnici[deal.obchodnik]) {
-                obchodnici[deal.obchodnik] = { 
-                  jmeno: deal.obchodnik, pocetDealu: 0, uspech: 0, lost: 0, order_sent: 0, conditions_sent: 0, in_process: 0, meeting_arranged: 0,
-                  hodnoty: {}, produkty: {} 
+        // --- NORMALIZAČNÍ FUNKCE PRO PIPEDRIVE EXPORT ---
+        const normalizePipedriveData = (rawRows) => {
+            return rawRows.map(row => {
+                const getVal = (possibleKeys) => {
+                    const key = Object.keys(row).find(k => 
+                        possibleKeys.some(pk => k.toLowerCase().trim() === pk.toLowerCase().trim())
+                    );
+                    return key ? row[key] : null;
                 };
-              }
-              const obch = obchodnici[deal.obchodnik];
-              obch.pocetDealu++;
-              obch[kat]++;
-              
-              if (kat !== 'lost' && deal.hodnota > 0) {
-                obch.hodnoty[deal.mena] = (obch.hodnoty[deal.mena] || 0) + deal.hodnota;
-              }
-              
-              deal.stitky.forEach(stitek => {
-                obch.produkty[stitek] = (obch.produkty[stitek] || 0) + 1;
-              });
 
-              if (!operatori[deal.operator]) {
-                operatori[deal.operator] = { jmeno: deal.operator, sjednano: 0, uspechZdroj: 0 };
-              }
-              const op = operatori[deal.operator];
-              op.sjednano++;
-              if (kat === 'uspech') op.uspechZdroj++;
+                const title = getVal(['Název', 'Title', 'Název obchodu', 'Deal title', 'Název obchodního případu', 'Subject', 'Deal Name']) || 'Bez názvu';
+                const rawValue = getVal(['Hodnota', 'Value', 'Deal value', 'Částka', 'Cena', 'Amount']);
+                const currency = getVal(['Měna', 'Currency']) || 'CZK';
+                const owner = getVal(['Vlastník', 'Owner', 'Vlastník obchodu', 'Owner name', 'Přiřazeno uživateli']) || 'Neznámý';
+                const stage = getVal(['Fáze', 'Stage', 'Fáze obchodu', 'Stupeň', 'Deal stage']) || 'Nedefinováno';
+                const statusRaw = (getVal(['Stav', 'Status', 'Stav obchodu']) || 'open').toLowerCase().trim();
+                const lostReason = getVal(['Důvod ztráty', 'Lost reason', 'Důvody ztráty', 'Důvod prohry']) || '';
+                const addTime = getVal(['Čas vytvoření', 'Add time', 'Datum vytvoření', 'Created', 'Vytvořeno', 'Created date']) || '';
+
+                let value = 0;
+                if (rawValue !== null && rawValue !== undefined) {
+                    if (typeof rawValue === 'number') {
+                        value = rawValue;
+                    } else {
+                        value = parseFloat(String(rawValue).replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    }
+                }
+                if (isNaN(value)) value = 0;
+
+                let status = 'open';
+                if (statusRaw.includes('won') || statusRaw.includes('vyhr') || statusRaw.includes('úspěch') || statusRaw.includes('uzavřený')) {
+                    status = 'won';
+                } else if (statusRaw.includes('lost') || statusRaw.includes('prohr') || statusRaw.includes('ztrác') || statusRaw.includes('ztracen')) {
+                    status = 'lost';
+                }
+
+                return { title, value, currency, owner, stage, status, lostReason, addTime };
+            });
+        };
+
+        // --- ZPRACOVÁNÍ EXCEL / CSV SOUBORU ---
+        const handleFileUpload = (file) => {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = e.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (json.length === 0) {
+                        showNotification("Nahrávaný soubor neobsahuje žádná data.", "error");
+                        return;
+                    }
+
+                    state.deals = normalizePipedriveData(json);
+                    state.ownerFilter = 'all';
+                    state.statusFilter = 'all';
+                    state.searchTerm = '';
+                    
+                    showNotification(`Úspěšně naimportováno ${state.deals.length} obchodů!`, "success");
+                    render();
+                } catch (err) {
+                    showNotification("Chyba při čtení souboru. Použijte standardní Excel (.xlsx) nebo CSV export.", "error");
+                }
+            };
+            reader.readAsBinaryString(file);
+        };
+
+        // --- VÝPOČET STATISTIK A FILTRACE ---
+        const getStatsAndFilteredData = () => {
+            // Filtrování
+            const filtered = state.deals.filter(deal => {
+                const matchesSearch = deal.title.toLowerCase().includes(state.searchTerm.toLowerCase()) || 
+                                      deal.owner.toLowerCase().includes(state.searchTerm.toLowerCase());
+                const matchesOwner = state.ownerFilter === 'all' || deal.owner === state.ownerFilter;
+                const matchesStatus = state.statusFilter === 'all' || deal.status === state.statusFilter;
+                return matchesSearch && matchesOwner && matchesStatus;
             });
 
-            const formatCurrency = (hodnotyObj) => {
-              return Object.entries(hodnotyObj)
-                .map(([mena, hodnota]) => `${hodnota.toLocaleString('cs-CZ', {maximumFractionDigits: 0})} ${mena}`)
-                .join(' | ') || '0 CZK';
-            };
+            // Hlavní KPI
+            const total = filtered.length;
+            let totalValue = 0;
+            let wonValue = 0;
+            let wonCount = 0;
+            let lostValue = 0;
+            let lostCount = 0;
+            let openValue = 0;
+            let openCount = 0;
 
-            const obchArray = Object.values(obchodnici).map(o => {
-              const konverze = o.pocetDealu > 0 ? (o.uspech / o.pocetDealu) * 100 : 0;
-              const topProdukty = Object.entries(o.produkty)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 3);
-              return { ...o, konverze, topProdukty, hodnotaStr: formatCurrency(o.hodnoty) };
-            }).sort((a, b) => b.konverze - a.konverze);
+            filtered.forEach(d => {
+                totalValue += d.value;
+                if (d.status === 'won') {
+                    wonValue += d.value;
+                    wonCount++;
+                } else if (d.status === 'lost') {
+                    lostValue += d.value;
+                    lostCount++;
+                } else {
+                    openValue += d.value;
+                    openCount++;
+                }
+            });
 
-            const opArray = Object.values(operatori).map(o => {
-              const konverze = o.sjednano > 0 ? (o.uspechZdroj / o.sjednano) * 100 : 0;
-              return { ...o, konverze };
-            }).sort((a, b) => b.sjednano - a.sjednano);
+            const closedCount = wonCount + lostCount;
+            const winRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : 0;
+            const avgValue = total > 0 ? Math.round(totalValue / total) : 0;
+
+            // Výkon obchodníků
+            const repsMap = {};
+            filtered.forEach(d => {
+                if (!repsMap[d.owner]) {
+                    repsMap[d.owner] = { name: d.owner, wonVal: 0, lostVal: 0, openVal: 0, count: 0, totalVal: 0 };
+                }
+                repsMap[d.owner].count++;
+                repsMap[d.owner].totalVal += d.value;
+                if (d.status === 'won') repsMap[d.owner].wonVal += d.value;
+                else if (d.status === 'lost') repsMap[d.owner].lostVal += d.value;
+                else repsMap[d.owner].openVal += d.value;
+            });
+            const ownerStats = Object.values(repsMap).sort((a, b) => b.totalVal - a.totalVal);
+
+            // Fáze
+            const stageMap = {};
+            filtered.forEach(d => {
+                if (!stageMap[d.stage]) {
+                    stageMap[d.stage] = { stage: d.stage, value: 0, count: 0 };
+                }
+                stageMap[d.stage].value += d.value;
+                stageMap[d.stage].count++;
+            });
+            const stageStats = Object.values(stageMap).sort((a, b) => b.value - a.value);
+
+            // Důvody ztráty
+            const lostReasonsMap = {};
+            filtered.filter(d => d.status === 'lost' && d.lostReason).forEach(d => {
+                const reason = d.lostReason.trim();
+                lostReasonsMap[reason] = (lostReasonsMap[reason] || 0) + 1;
+            });
+            const lostReasonStats = Object.entries(lostReasonsMap)
+                .map(([reason, count]) => ({ reason, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+
+            // Unikátní obchodníci pro filtry
+            const uniqueOwners = Array.from(new Set(state.deals.map(d => d.owner))).sort();
 
             return {
-              celkemDealu,
-              celkemUspech,
-              celkovaKonverze: celkemDealu > 0 ? (celkemUspech / celkemDealu) * 100 : 0,
-              hodnotyStr: formatCurrency(celkoveHodnoty),
-              obchodnici: obchArray,
-              operatori: opArray,
-              nadNormu: obchArray.filter(o => o.konverze >= 20).length,
-              podNormu: obchArray.filter(o => o.konverze < 20).length,
+                filtered,
+                uniqueOwners,
+                ownerStats,
+                stageStats,
+                lostReasonStats,
+                kpi: { total, totalValue, wonValue, wonCount, lostValue, lostCount, openValue, openCount, winRate, avgValue }
             };
-          }, [data]);
+        };
 
-          const getPct = (val, total) => total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+        // --- MANIPULACE SE STAVEM (Actions) ---
+        const loadSample = () => {
+            state.deals = SAMPLE_DATA;
+            state.ownerFilter = 'all';
+            state.statusFilter = 'all';
+            state.searchTerm = '';
+            showNotification("Vzorová data byla úspěšně načtena!", "success");
+            render();
+        };
 
-          if (!data) {
-            return (
-              <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100 text-center">
-                  <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Target size={32} />
-                  </div>
-                  <h1 className="text-2xl font-bold text-slate-800 mb-2">Manažerský Pipedrive Report</h1>
-                  <p className="text-slate-500 mb-8">
-                    Nahrajte export z Pipedrive. Systém automaticky změří výkon obchodníků vůči <b className="text-slate-700">20% hranici konverze</b>.
-                  </p>
-                  
-                  <label className={`relative flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 border-dashed rounded-xl ${xlsxLoaded ? 'cursor-pointer bg-slate-50 hover:bg-blue-50 hover:border-blue-300' : 'cursor-wait bg-slate-100 opacity-70'} transition-all`}>
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className={`w-8 h-8 mb-3 ${xlsxLoaded ? 'text-blue-500' : 'text-slate-300 animate-pulse'}`} />
-                      <p className="mb-2 text-sm text-slate-500">
-                        {xlsxLoaded ? <><span className="font-semibold text-blue-600">Klikněte pro nahrání</span> nebo přetáhněte</> : 'Načítám čtečku Excelu...'}
-                      </p>
-                      <p className="text-xs text-slate-400">Podporováno: .xlsx, .csv</p>
-                    </div>
-                    <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} disabled={loading || !xlsxLoaded} />
-                  </label>
-                  
-                  {loading && <p className="mt-4 text-blue-600 font-medium">Zpracovávám data...</p>}
-                  {error && <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg flex items-center text-sm"><AlertCircle size={16} className="mr-2 shrink-0" />{error}</div>}
-                </div>
-              </div>
-            );
-          }
+        const resetData = () => {
+            state.deals = [];
+            state.activeTab = 'dashboard';
+            showNotification("Všechna data byla vymazána.", "info");
+            render();
+        };
 
-          return (
-            <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 font-sans">
-              <div className="max-w-7xl mx-auto space-y-6">
-                
-                <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                  <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Manažerský Dashboard</h1>
-                    <p className="text-slate-500 text-sm mt-1">Cílová konverze obchodníků: Minimálně 20%</p>
-                  </div>
-                  <button onClick={() => setData(null)} className="mt-4 md:mt-0 px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-                    Nahrát jiná data
-                  </button>
-                </div>
+        // --- RENDEROVÁNÍ ROZHRANÍ (DOM Renderer) ---
+        const render = () => {
+            const mainContent = document.getElementById('main-content');
+            const headerActions = document.getElementById('header-actions');
 
-                <div className="flex flex-wrap gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-fit">
-                  <button className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center transition-colors ${activeTab === 'overview' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'}`} onClick={() => setActiveTab('overview')}>
-                    <BarChart3 size={16} className="mr-2" /> Celkový přehled
-                  </button>
-                  <button className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center transition-colors ${activeTab === 'obchodnici' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} onClick={() => setActiveTab('obchodnici')}>
-                    <Users size={16} className="mr-2" /> Detail Obchodníků
-                  </button>
-                  <button className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center transition-colors ${activeTab === 'operatori' ? 'bg-green-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} onClick={() => setActiveTab('operatori')}>
-                    <PhoneCall size={16} className="mr-2" /> Výkon Operátorů
-                  </button>
-                </div>
+            // 1. Aktualizace záhlaví
+            if (state.deals.length > 0) {
+                headerActions.innerHTML = `
+                    <button id="btn-clear" class="text-slate-400 hover:text-white transition text-sm flex items-center gap-1.5 px-3 py-2 border border-slate-700 hover:border-slate-500 rounded-lg">
+                        ${Icons.Refresh} Vyčistit data
+                    </button>
+                    <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow border border-slate-700 flex items-center gap-2 transition">
+                        ${Icons.Upload} <span>Nahrát export</span>
+                        <input type="file" id="file-input-header" class="hidden" accept=".xlsx, .xls, .csv" />
+                    </label>
+                `;
+                // Navázání eventů pro záhlaví
+                document.getElementById('btn-clear').addEventListener('click', resetData);
+                document.getElementById('file-input-header').addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
+            } else {
+                headerActions.innerHTML = '';
+            }
 
-                {/* CELKOVÝ PŘEHLED */}
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <p className="text-sm font-medium text-slate-500 mb-1">Všechny zpracované dealy</p>
-                        <h3 className="text-3xl font-bold text-slate-800">{stats.celkemDealu}</h3>
-                      </div>
-                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <p className="text-sm font-medium text-slate-500 mb-1">Úspěšně uzavřeno</p>
-                        <h3 className="text-3xl font-bold text-green-600">{stats.celkemUspech}</h3>
-                      </div>
-                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <p className="text-sm font-medium text-slate-500 mb-1">Průměrná konverze</p>
-                        <h3 className={`text-3xl font-bold ${stats.celkovaKonverze >= 20 ? 'text-blue-600' : 'text-red-500'}`}>
-                          {stats.celkovaKonverze.toFixed(1)}%
-                        </h3>
-                      </div>
-                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        <p className="text-sm font-medium text-slate-500 mb-1">Objem v živé pipeline</p>
-                        <h3 className="text-xl font-bold text-slate-800 mt-2">{stats.hodnotyStr}</h3>
-                      </div>
-                    </div>
-                  </div>
-                )}
+            // 2. Vykreslení hlavní sekce podle stavu
+            if (state.deals.length === 0) {
+                // --- STRÁNKA S IMPORTEM ---
+                mainContent.innerHTML = `
+                    <div class="max-w-3xl mx-auto mt-8">
+                        <div class="text-center mb-10">
+                            <h2 class="text-2xl md:text-3xl font-bold text-slate-800 mb-3">Manažerské statistiky jedním kliknutím</h2>
+                            <p class="text-slate-600 text-lg max-w-xl mx-auto">Přetáhněte sem exportovaný soubor z Pipedrive a hned uvidíte přehledné statistiky celého týmu.</p>
+                        </div>
 
-                {/* OBCHODNÍCI */}
-                {activeTab === 'obchodnici' && (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {stats.obchodnici.map((obchodnik, idx) => {
-                      const isPassing = obchodnik.konverze >= 20;
-                      return (
-                        <div key={idx} className={`bg-white rounded-2xl shadow-sm border-t-4 p-6 ${isPassing ? 'border-t-green-500 border-x-slate-100 border-b-slate-100' : 'border-t-red-500 border-x-slate-100 border-b-slate-100'}`}>
-                          
-                          <div className="flex justify-between items-start mb-6 border-b border-slate-100 pb-4">
-                            <div>
-                              <h3 className="text-xl font-bold text-slate-800">{obchodnik.jmeno}</h3>
-                              <p className="text-sm font-medium text-slate-500 mt-1">Celkem domluvených schůzek: <span className="font-bold text-slate-800">{obchodnik.pocetDealu}</span></p>
-                            </div>
-                            <div className="text-right flex flex-col items-end">
-                              <p className="text-xs text-slate-400 uppercase font-semibold mb-1">Hlavní konverze</p>
-                              <div className={`px-4 py-2 rounded-xl text-lg font-black flex items-center ${isPassing ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {isPassing ? <TrendingUp size={20} className="mr-2"/> : <TrendingUp size={20} className="mr-2 rotate-180"/>}
-                                {obchodnik.konverze.toFixed(1)} %
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3 mb-6">
-                            <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-100">
-                              <div>
-                                <p className="text-sm font-bold text-green-800">Úspěšně dokončené (Konverze)</p>
-                                <p className="text-[10px] text-green-600 mt-1 uppercase font-semibold">Signed Order, Invoice, Paid, atd.</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-black text-green-700">{obchodnik.konverze.toFixed(1)} %</p>
-                                <p className="text-xs font-semibold text-green-600">{obchodnik.uspech} dealů z {obchodnik.pocetDealu}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-between items-center bg-amber-50 p-3 rounded-lg border border-amber-100">
-                              <div>
-                                <p className="text-sm font-bold text-amber-800">Rozjednané obchody</p>
-                                <p className="text-[10px] text-amber-600 mt-1 uppercase font-semibold">Stav: Conditions Sent</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-black text-amber-700">{getPct(obchodnik.conditions_sent, obchodnik.pocetDealu)} %</p>
-                                <p className="text-xs font-semibold text-amber-600">{obchodnik.conditions_sent} dealů z {obchodnik.pocetDealu}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
-                              <div>
-                                <p className="text-sm font-bold text-blue-800">Čeká na podpis</p>
-                                <p className="text-[10px] text-blue-600 mt-1 uppercase font-semibold">Stav: Order Sent</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-black text-blue-700">{getPct(obchodnik.order_sent, obchodnik.pocetDealu)} %</p>
-                                <p className="text-xs font-semibold text-blue-600">{obchodnik.order_sent} dealů z {obchodnik.pocetDealu}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-between items-center bg-slate-100 p-3 rounded-lg border border-slate-200">
-                              <div>
-                                <p className="text-sm font-bold text-slate-800">Dlouhodobé obchody</p>
-                                <p className="text-[10px] text-slate-500 mt-1 uppercase font-semibold">Stav: In Process</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-black text-slate-700">{getPct(obchodnik.in_process, obchodnik.pocetDealu)} %</p>
-                                <p className="text-xs font-semibold text-slate-600">{obchodnik.in_process} dealů z {obchodnik.pocetDealu}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row gap-6 border-t border-slate-100 pt-4">
-                            <div className="flex-1 space-y-3">
-                              <div className="flex items-center justify-between bg-red-50 p-2 rounded border border-red-100">
-                                <p className="text-xs text-red-800 font-semibold flex items-center"><XCircle size={14} className="mr-1"/> Ztracené dealy</p>
-                                <p className="text-sm font-bold text-red-700">
-                                  {obchodnik.lost} <span className="text-red-500 text-xs font-medium">({getPct(obchodnik.lost, obchodnik.pocetDealu)}%)</span>
-                                </p>
-                              </div>
-                              <div className="flex items-center justify-between p-2">
-                                <p className="text-xs text-slate-500 uppercase font-semibold flex items-center"><FileSpreadsheet size={14} className="mr-1"/> Hodnota pipeline</p>
-                                <p className="text-sm font-bold text-slate-800">{obchodnik.hodnotaStr}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex-1">
-                              <p className="text-xs text-slate-400 uppercase font-semibold flex items-center mb-2"><Package size={14} className="mr-1"/> Nejčastější produkty</p>
-                              {obchodnik.topProdukty.length > 0 ? (
-                                <div className="space-y-1">
-                                  {obchodnik.topProdukty.map(([prod, count], i) => (
-                                    <div key={i} className="flex justify-between items-center text-sm bg-white border border-slate-100 px-2 py-1 rounded">
-                                      <span className="truncate pr-2 text-slate-600 text-xs" title={prod}>{prod}</span>
-                                      <span className="font-bold text-slate-800 bg-slate-100 px-2 rounded text-xs">{count}x</span>
-                                    </div>
-                                  ))}
+                        <!-- Drop zóna -->
+                        <div id="drop-zone" class="border-3 border-dashed rounded-2xl p-10 text-center transition duration-200 cursor-pointer ${
+                            state.dragActive ? "border-emerald-500 bg-emerald-50/50" : "border-slate-300 bg-white hover:border-slate-400 shadow-sm"
+                        }">
+                            <div class="flex flex-col items-center pointer-events-none">
+                                <div class="p-4 bg-emerald-50 text-emerald-600 rounded-full mb-4">
+                                    ${Icons.FileSpreadsheet}
                                 </div>
-                              ) : (
-                                <span className="text-sm text-slate-400 italic">Žádné štítky/produkty.</span>
-                              )}
+                                <p class="text-lg font-semibold text-slate-800 mb-2">Přetáhněte sem exportovaný soubor</p>
+                                <p class="text-sm text-slate-500 mb-6">Podporujeme formáty XLSX, XLS a CSV</p>
+                                
+                                <div class="flex flex-wrap gap-4 justify-center pointer-events-auto">
+                                    <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
+                                        ${Icons.Upload} Vybrat soubor z PC
+                                        <input type="file" id="file-input-main" accept=".xlsx, .xls, .csv" class="hidden" />
+                                    </label>
+                                    
+                                    <button id="btn-load-sample" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
+                                        ${Icons.Refresh} Načíst ukázková data
+                                    </button>
+                                </div>
                             </div>
-                          </div>
-
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
 
-                {/* OPERÁTOŘI */}
-                {activeTab === 'operatori' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {stats.operatori.map((operator, idx) => {
-                      return (
-                        <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
-                          <div>
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center mb-4">
-                              <PhoneCall size={20} className="mr-2 text-blue-500" />
-                              {operator.jmeno}
+                        <!-- Instrukce -->
+                        <div class="mt-12 bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+                            <h3 class="text-md font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                ${Icons.Info} Jak získat správný soubor z Pipedrive?
                             </h3>
-                            
-                            <div className="space-y-4">
-                              <div className="bg-slate-50 p-3 rounded-lg flex justify-between items-center">
-                                <span className="text-sm text-slate-600 font-medium">Zaevidováno schůzek</span>
-                                <span className="text-lg font-bold text-slate-800">{operator.sjednano}</span>
-                              </div>
-                              <div className="bg-green-50 p-3 rounded-lg flex justify-between items-center">
-                                <span className="text-sm text-green-700 font-medium">Úspěšně dotaženo</span>
-                                <span className="text-lg font-bold text-green-700">{operator.uspechZdroj}</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-6 pt-4 border-t border-slate-100">
-                            <p className="text-xs text-slate-500 uppercase font-semibold text-center mb-1">Míra kvality leadů (Konverze)</p>
-                            <div className="flex items-center justify-center">
-                              <span className={`text-2xl font-bold ${operator.konverze >= 20 ? 'text-blue-600' : 'text-slate-700'}`}>
-                                {operator.konverze.toFixed(1)}%
-                              </span>
-                            </div>
-                          </div>
+                            <ol class="list-decimal list-inside text-sm text-slate-600 space-y-2">
+                                <li>Přihlaste se do účtu <strong>Pipedrive</strong>.</li>
+                                <li>Přejděte do sekce <strong>Obchody (Deals)</strong>.</li>
+                                <li>Vpravo nahoře klikněte na tři tečky a vyberte <strong>Exportovat výsledky filtru</strong>.</li>
+                                <li>Zvolte formát <strong>Excel (.xlsx)</strong> nebo <strong>CSV</strong> a stáhněte soubor.</li>
+                                <li>Stažený soubor jednoduše přetáhněte do zóny výše!</li>
+                            </ol>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                    </div>
+                `;
 
-              </div>
-            </div>
-          );
-        }
+                // Event listenery pro importní obrazovku
+                const dropZone = document.getElementById('drop-zone');
+                const fileInputMain = document.getElementById('file-input-main');
+                const btnLoadSample = document.getElementById('btn-load-sample');
 
-        // Nastartování React aplikace na stránce
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+                btnLoadSample.addEventListener('click', loadSample);
+                fileInputMain.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
+
+                // Drag & Drop
+                const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+                    dropZone.addEventListener(evt, preventDefaults);
+                });
+
+                dropZone.addEventListener('dragenter', () => { dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50'); });
+                dropZone.addEventListener('dragover', () => { dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50'); });
+                dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50'); });
+                dropZone.addEventListener('drop', (e) => {
+                    dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleFileUpload(e.dataTransfer.files[0]);
+                    }
+                });
+
+            } else {
+                // --- STRÁNKA S AKTIVNÍM DASHBOARDEM ---
+                const data = getStatsAndFilteredData();
+
+                mainContent.innerHTML = `
+                    <!-- FILTRY A NAVIGACE -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-8 flex flex-col gap-5">
+                        <!-- Záložky -->
+                        <div class="flex border-b border-slate-100 pb-3 gap-2 overflow-x-auto">
+                            <button id="tab-dashboard" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
+                                state.activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                            }">
+                                ${Icons.BarChart} Hlavní Přehled
+                            </button>
+                            <button id="tab-salespeople" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
+                                state.activeTab === 'salespeople' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                            }">
+                                ${Icons.Users} Výkon Obchodníků (${data.ownerStats.length})
+                            </button>
+                            <button id="tab-list" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
+                                state.activeTab === 'list' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                            }">
+                                ${Icons.FileSpreadsheet} Seznam Obchodů (${data.filtered.length})
+                            </button>
+                        </div>
+
+                        <!-- Filtrační panel -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div class="relative">
+                                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Hledat obchod / obchodníka</label>
+                                <div class="relative">
+                                    <div class="absolute left-3 top-3 text-slate-400">${Icons.Search}</div>
+                                    <input 
+                                        type="text" 
+                                        id="search-input"
+                                        placeholder="Zadejte název nebo jméno..." 
+                                        value="${state.searchTerm}"
+                                        className="w-full"
+                                        style="width:100%;"
+                                        class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Vlastník obchodu</label>
+                                <select 
+                                    id="owner-filter-select"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                                >
+                                    <option value="all">Všichni obchodníci (${data.uniqueOwners.length})</option>
+                                    ${data.uniqueOwners.map(owner => `
+                                        <option value="${owner}" ${state.ownerFilter === owner ? 'selected' : ''}>${owner}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Stav v Pipedrive</label>
+                                <select 
+                                    id="status-filter-select"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                                >
+                                    <option value="all" ${state.statusFilter === 'all' ? 'selected' : ''}>Všechny stavy</option>
+                                    <option value="open" ${state.statusFilter === 'open' ? 'selected' : ''}>Otevřené (Rozpracované)</option>
+                                    <option value="won" ${state.statusFilter === 'won' ? 'selected' : ''}>Získané (Won)</option>
+                                    <option value="lost" ${state.statusFilter === 'lost' ? 'selected' : ''}>Ztracené (Lost)</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm">
+                                <span class="text-slate-500">Zobrazeno:</span>
+                                <span class="font-bold text-slate-800">${data.filtered.length} z ${state.deals.length}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI KARTY -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Celková Hodnota</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${formatCZK(data.kpi.totalValue)}</h3>
+                            </div>
+                            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">${Icons.Dollar}</div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Win Rate</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${data.kpi.winRate} %</h3>
+                            </div>
+                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">${Icons.TrendingUp}</div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Průměrný Deal</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${formatCZK(data.kpi.avgValue)}</h3>
+                            </div>
+                            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">${Icons.BarChart}</div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Otevřené Obchody</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${data.kpi.openCount} ks <span class="text-xs text-slate-400 font-normal">(${formatCZK(data.kpi.openValue)})</span></h3>
+                            </div>
+                            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">${Icons.FileSpreadsheet}</div>
+                        </div>
+                    </div>
+
+                    <!-- DYNAMICKÁ SEKCE PODLE ZÁLOŽKY -->
+                    <div id="tab-view-container"></div>
+                `;
+
+                // Vykreslení konkrétní záložky
+                const tabViewContainer = document.getElementById('tab-view-container');
+
+                if (state.activeTab === 'dashboard') {
+                    // --- ZÁLOŽKA: DASHBOARD ---
+                    tabViewContainer.innerHTML = `
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <!-- Poměr stavů -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-1">
+                                <h3 class="text-md font-bold text-slate-800 mb-6">Poměr Stavů Obchodů</h3>
+                                <div class="space-y-6">
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1 text-sm font-semibold">
+                                            <span class="text-emerald-600 flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                                Úspěšné (Won)
+                                            </span>
+                                            <span class="text-slate-800">${data.kpi.wonCount} ks (${formatCZK(data.kpi.wonValue)})</span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 rounded-full h-3">
+                                            <div class="bg-emerald-500 h-3 rounded-full" style="width: ${data.kpi.totalValue > 0 ? (data.kpi.wonValue / data.kpi.totalValue) * 100 : 0}%"></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1 text-sm font-semibold">
+                                            <span class="text-amber-600 flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                                Rozpracované (Open)
+                                            </span>
+                                            <span class="text-slate-800">${data.kpi.openCount} ks (${formatCZK(data.kpi.openValue)})</span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 rounded-full h-3">
+                                            <div class="bg-amber-500 h-3 rounded-full" style="width: ${data.kpi.totalValue > 0 ? (data.kpi.openValue / data.kpi.totalValue) * 100 : 0}%"></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1 text-sm font-semibold">
+                                            <span class="text-rose-600 flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                                                Ztracené (Lost)
+                                            </span>
+                                            <span class="text-slate-800">${data.kpi.lostCount} ks (${formatCZK(data.kpi.lostValue)})</span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 rounded-full h-3">
+                                            <div class="bg-rose-500 h-3 rounded-full" style="width: ${data.kpi.totalValue > 0 ? (data.kpi.lostValue / data.kpi.totalValue) * 100 : 0}%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                ${data.lostReasonStats.length > 0 ? `
+                                    <div class="mt-8 border-t border-slate-100 pt-6">
+                                        <h4 class="text-sm font-bold text-slate-800 mb-4">Nejčastější důvody ztráty</h4>
+                                        <div class="space-y-3">
+                                            ${data.lostReasonStats.map(item => `
+                                                <div class="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg text-xs">
+                                                    <span class="text-slate-600 font-medium truncate pr-4">${item.reason}</span>
+                                                    <span class="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full font-bold shrink-0">${item.count} obchody</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Fáze pipeline -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
+                                <h3 class="text-md font-bold text-slate-800 mb-6">Pipeline - Objem peněz ve fázích</h3>
+                                ${data.stageStats.length === 0 ? `
+                                    <p class="text-slate-400 text-sm py-10 text-center">Nejsou k dispozici žádné fáze.</p>
+                                ` : `
+                                    <div class="space-y-4">
+                                        ${data.stageStats.map(item => {
+                                            const maxVal = Math.max(...data.stageStats.map(s => s.value));
+                                            const percentageOfMax = maxVal > 0 ? (item.value / maxVal) * 100 : 0;
+                                            return `
+                                                <div class="flex items-center gap-4">
+                                                    <div class="w-24 text-xs font-semibold text-slate-600 truncate text-right">${item.stage}</div>
+                                                    <div class="flex-1 bg-slate-50 rounded-lg p-1.5">
+                                                        <div 
+                                                            class="bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-xs px-2 py-1 rounded transition-all duration-300 flex justify-between min-w-[4rem]"
+                                                            style="width: ${Math.max(percentageOfMax, 15)}%"
+                                                        >
+                                                            <span>${formatCZK(item.value)}</span>
+                                                            <span class="opacity-75">${item.count} ks</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                } else if (state.activeTab === 'salespeople') {
+                    // --- ZÁLOŽKA: OBCHODNÍCI ---
+                    tabViewContainer.innerHTML = `
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                            <h3 class="text-md font-bold text-slate-800 mb-6">Porovnání obchodních výsledků</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr class="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider pb-3">
+                                            <th class="py-3 px-4">Obchodník</th>
+                                            <th class="py-3 px-4">Obchodů celkem</th>
+                                            <th class="py-3 px-4">Získané (Won)</th>
+                                            <th class="py-3 px-4 font-semibold text-slate-700">Uzavřený objem</th>
+                                            <th class="py-3 px-4">Rozpracováno (Open)</th>
+                                            <th class="py-3 px-4">Win Rate %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-50 text-slate-700">
+                                        ${data.ownerStats.map(rep => {
+                                            const totalCountClosed = data.filtered.filter(d => d.owner === rep.name && d.status !== 'open').length;
+                                            const wonCountRep = data.filtered.filter(d => d.owner === rep.name && d.status === 'won').length;
+                                            const winRate = totalCountClosed > 0 ? Math.round((wonCountRep / totalCountClosed) * 100) : 0;
+                                            return `
+                                                <tr class="hover:bg-slate-50/70 transition">
+                                                    <td class="py-4 px-4 font-bold text-slate-900">${rep.name}</td>
+                                                    <td class="py-4 px-4">${rep.count} ks</td>
+                                                    <td class="py-4 px-4 text-emerald-600 font-semibold">${formatCZK(rep.wonVal)}</td>
+                                                    <td class="py-4 px-4 font-bold text-slate-800">${formatCZK(rep.wonVal + rep.lostVal)}</td>
+                                                    <td class="py-4 px-4 text-amber-600">${formatCZK(rep.openVal)}</td>
+                                                    <td class="py-4 px-4">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-bold w-10 text-right">${winRate}%</span>
+                                                            <div class="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
+                                                                <div class="bg-emerald-500 h-full rounded-full" style="width: ${winRate}%"></div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                } else if (state.activeTab === 'list') {
+                    // --- ZÁLOŽKA: SEZNAM OBCHODŮ ---
+                    tabViewContainer.innerHTML = `
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="p-5 border-b border-slate-100">
+                                <h3 class="text-md font-bold text-slate-800">Detailní přehled vyfiltrovaných obchodů</h3>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr class="border-b border-slate-100 bg-slate-50 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                                            <th class="py-4 px-6">Název obchodu</th>
+                                            <th class="py-4 px-4">Vlastník</th>
+                                            <th class="py-4 px-4">Fáze</th>
+                                            <th class="py-4 px-4 text-right">Hodnota</th>
+                                            <th class="py-4 px-4 text-center">Status</th>
+                                            <th class="py-4 px-4">Vytvořeno</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 text-slate-700">
+                                        ${data.filtered.length === 0 ? `
+                                            <tr>
+                                                <td colSpan="6" class="py-8 text-center text-slate-400">Žádné obchody neodpovídají filtrům.</td>
+                                            </tr>
+                                        ` : data.filtered.map(deal => `
+                                            <tr class="hover:bg-slate-50/70 transition">
+                                                <td class="py-4 px-6 font-bold text-slate-800">${deal.title}</td>
+                                                <td class="py-4 px-4 text-slate-600">${deal.owner}</td>
+                                                <td class="py-4 px-4">
+                                                    <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-semibold">
+                                                        ${deal.stage}
+                                                    </span>
+                                                </td>
+                                                <td class="py-4 px-4 text-right font-bold text-slate-900">${formatCZK(deal.value)}</td>
+                                                <td class="py-4 px-4 text-center">
+                                                    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                                                        deal.status === 'won' ? 'bg-emerald-100 text-emerald-800' :
+                                                        deal.status === 'lost' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                                                    }">
+                                                        ${deal.status === 'won' ? 'Získaný' : deal.status === 'lost' ? 'Ztracený' : 'Otevřený'}
+                                                    </span>
+                                                </td>
+                                                <td class="py-4 px-4 text-xs text-slate-500">${deal.addTime || 'Neuvedeno'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // --- PŘIPOJENÍ EVENTŮ PRO DASHBOARD (Po každém překreslení) ---
+                
+                // Záložky
+                document.getElementById('tab-dashboard').addEventListener('click', () => { state.activeTab = 'dashboard'; render(); });
+                document.getElementById('tab-salespeople').addEventListener('click', () => { state.activeTab = 'salespeople'; render(); });
+                document.getElementById('tab-list').addEventListener('click', () => { state.activeTab = 'list'; render(); });
+
+                // Filtry (Dropdowns)
+                document.getElementById('owner-filter-select').addEventListener('change', (e) => {
+                    state.ownerFilter = e.target.value;
+                    render();
+                });
+                document.getElementById('status-filter-select').addEventListener('change', (e) => {
+                    state.statusFilter = e.target.value;
+                    render();
+                });
+
+                // Vyhledávání (Zabránění ztrátě focusu)
+                const searchInput = document.getElementById('search-input');
+                searchInput.addEventListener('input', (e) => {
+                    state.searchTerm = e.target.value;
+                    // Pro plynulé psaní překreslíme pouze tabulku / dashboard data, nikoliv celé rozhraní, které by vyresetovalo kurzor
+                    const freshData = getStatsAndFilteredData();
+                    
+                    // Rychlé lokální překreslení vyfiltrovaných počtů bez kompletního překreslení celého DOMu
+                    const visibleCountSpan = searchInput.closest('div').parentElement.nextElementSibling.nextElementSibling.nextElementSibling?.querySelector('.font-bold');
+                    if (visibleCountSpan) {
+                        visibleCountSpan.textContent = `${freshData.filtered.length} z ${state.deals.length}`;
+                    }
+                });
+
+                // Chytání Enter/Change pro kompletní re-render hledání
+                searchInput.addEventListener('change', () => {
+                    render();
+                });
+                searchInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') render();
+                });
+                
+                // Vrácení focusu do vyhledávače po re-renderu
+                if (document.activeElement && document.activeElement.id !== 'search-input' && state.searchTerm !== '') {
+                    const newInput = document.getElementById('search-input');
+                    if (newInput) {
+                        newInput.focus();
+                        newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+                    }
+                }
+            }
+        };
+
+        // --- PRVNÍ SPUŠTĚNÍ ---
+        render();
     </script>
 </body>
 </html>
