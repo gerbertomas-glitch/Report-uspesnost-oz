@@ -188,15 +188,29 @@
             };
 
             return rawRows.map(row => {
+                // OPRAVENÁ VYHLEDÁVACÍ FUNKCE HLAVIČEK (Preferuje nejprve absolutní přesnost, čímž eliminuje záměnu 'obchod' a 'obchodník')
                 const getVal = (possibleKeys) => {
-                    const key = Object.keys(row).find(k => {
-                        const cleanK = k.toLowerCase().trim().replace('deal - ', '');
+                    // Krok 1: Hledání přesné shody po očištění (case-insensitive)
+                    let foundKey = Object.keys(row).find(k => {
+                        const cleanK = k.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
                         return possibleKeys.some(pk => {
-                            const cleanPk = pk.toLowerCase().trim().replace('deal - ', '');
-                            return cleanK === cleanPk || cleanK.includes(cleanPk) || cleanPk.includes(cleanK);
+                            const cleanPk = pk.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
+                            return cleanK === cleanPk;
                         });
                     });
-                    return key ? row[key] : null;
+                    
+                    // Krok 2: Pokud přesná shoda selhala, použijeme bezpečné částečné vyhledávání
+                    if (!foundKey) {
+                        foundKey = Object.keys(row).find(k => {
+                            const cleanK = k.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
+                            return possibleKeys.some(pk => {
+                                const cleanPk = pk.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
+                                if (cleanK === 'obchodník' && cleanPk === 'obchod') return false; // Guard proti kolizi
+                                return cleanK.includes(cleanPk) || cleanPk.includes(cleanK);
+                            });
+                        });
+                    }
+                    return foundKey ? row[foundKey] : null;
                 };
 
                 const title = getVal(['Deal - Název', 'Název', 'Title', 'Subject', 'Deal Name', 'Obchod']) || 'Bez názvu';
@@ -352,6 +366,9 @@
             const conditionsRate = total > 0 ? Math.round((conditionsCount / total) * 100) : 0;
             const orderSentRate = total > 0 ? Math.round((orderSentCount / total) * 100) : 0;
 
+            // OPRAVENÝ PRŮMĚR: Vypočítává se pouze z úspěšně zkonvertovaných kontraktů (požadavek uživatele)
+            const avgValue = conversionsCount > 0 ? Math.round(conversionsValue / conversionsCount) : 0;
+
             // Výkon obchodníků
             const repsMap = {};
             filtered.forEach(d => {
@@ -426,7 +443,8 @@
                     conditionsRate,
                     orderSentCount,
                     orderSentValue,
-                    orderSentRate
+                    orderSentRate,
+                    avgValue
                 }
             };
         };
@@ -658,20 +676,20 @@
 
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                             <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Průměrný úspěšný deal</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${formatCZK(data.kpi.avgValue)}</h3>
+                                <p class="text-xs text-slate-500">Pouze z konvertovaných fází</p>
+                            </div>
+                            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">${Icons.BarChart}</div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
                                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Odložené (In Process)</p>
                                 <h3 class="text-lg md:text-2xl font-bold text-amber-600">${data.kpi.inProcessRate} %</h3>
                                 <p class="text-xs text-slate-500">${data.kpi.inProcessCount} ks (${formatCZK(data.kpi.inProcessValue)})</p>
                             </div>
                             <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">${Icons.FileSpreadsheet}</div>
-                        </div>
-
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-                            <div>
-                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Celková Hodnota</p>
-                                <h3 class="text-lg md:text-2xl font-bold text-slate-800">${formatCZK(data.kpi.totalValue)}</h3>
-                                <p class="text-xs text-slate-500">${data.kpi.total} ks obchodů celkem</p>
-                            </div>
-                            <div class="p-3 bg-slate-100 text-slate-600 rounded-xl">${Icons.Dollar}</div>
                         </div>
                     </div>
 
@@ -709,12 +727,12 @@
                                         <span class="font-bold text-emerald-600">${data.kpi.conversionsCount} ks</span>
                                     </div>
                                     <div class="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                                        <span class="text-amber-600 font-semibold">Odloženo (In Process):</span>
+                                        <span class="text-amber-600 font-semibold">Odložené (In Process):</span>
                                         <span class="font-bold text-amber-600">${data.kpi.inProcessCount} ks</span>
                                     </div>
                                     <div class="flex justify-between items-center text-sm">
-                                        <span class="text-slate-500 font-medium">Průměrný deal:</span>
-                                        <span class="font-bold text-slate-800">${formatCZK(data.kpi.total > 0 ? Math.round(data.kpi.totalValue / data.kpi.total) : 0)}</span>
+                                        <span class="text-slate-500 font-medium">Průměrná konverze (CZK):</span>
+                                        <span class="font-bold text-emerald-600">${formatCZK(data.kpi.avgValue)}</span>
                                     </div>
                                 </div>
                             </div>
