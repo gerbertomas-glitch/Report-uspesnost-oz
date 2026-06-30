@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manažerský Pipedrive Report</title>
+    <title>Úspěšnost Call centrum</title>
     
     <!-- Tailwind CSS (pro prémiový vzhled) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,12 +42,11 @@
         <!-- HORNÍ LIŠTA -->
         <header class="bg-slate-900 text-white py-5 px-6 md:px-12 shadow-md mb-8">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-emerald-500 rounded-lg text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-                    </div>
-                    <div>
-                        <h1 class="text-xl font-bold tracking-tight">Manažerský Pipedrive Report</h1>
+                <div class="flex items-center gap-4">
+                    <!-- Logo společnosti VIEW v bílé barvě -->
+                    <img src="https://viewcz.com/images/svg/head-logo.svg" alt="VIEW" class="h-10 w-auto filter brightness-0 invert" onerror="this.style.display='none'" />
+                    <div class="border-l border-slate-700 pl-4">
+                        <h1 class="text-xl font-bold tracking-tight">Úspěšnost Call centrum</h1>
                         <p class="text-xs text-slate-400">Okamžitá vizualizace obchodních výsledků a pipeline</p>
                     </div>
                 </div>
@@ -71,7 +70,7 @@
             deals: [],
             activeTab: 'dashboard',
             searchTerm: '',
-            ownerFilter: 'all',
+            ownerFilter: 'all', // Bude obsahovat 'all' nebo index vlastníka (string) pro odolnost vůči překladačům
             statusFilter: 'all',
             dragActive: false
         };
@@ -97,7 +96,7 @@
             { "Deal - Název": "SolarPower Group - Dodávka fotovoltaiky", "Deal - Hodnota": "850000 CZK", "Deal - Obchodník": "Petr Černý", "Deal - Fáze": "MEETING ARRANGED", "Deal - Stav": "open", "Deal - Operátor": "Kratochvílová Pavla" },
             { "Deal - Název": "E-commerce Hub - SEO & PPC kampaň", "Deal - Hodnota": "45000 CZK", "Deal - Obchodník": "Jana Kučerová", "Deal - Fáze": "IN PROCESS", "Deal - Stav": "won", "Deal - Operátor": "Sýkorová Petra" },
             { "Deal - Název": "Prague Logistics - Fleet management HW", "Deal - Hodnota": "25000 EUR", "Deal - Obchodník": "Pavel Dvořák", "Deal - Fáze": "MEETING ARRANGED", "Deal - Stav": "lost", "Deal - Operátor": "Zug Zuzana" },
-            { "Deal - Název": "Budapest Trade - Distribuce licencí", "Deal - Hodnota": "8500000 HUF", "Deal - Obchodník": "Jan Novák", "Deal - Fáze": "CONDITIONS SENT", "Deal - Stav": "won", "Deal - Operátor": "Knebelová Ivana" },
+            { "Deal - Název": "Budapest Trade - Distribuce licencí", "Deal - Hodnota": "8.500.000 HUF", "Deal - Obchodník": "Vebrová Dagmar", "Deal - Fáze": "CONDITIONS SENT", "Deal - Stav": "won", "Deal - Operátor": "Knebelová Ivana" },
             { "Deal - Název": "Stavby Praha - Revize zabezpečení", "Deal - Hodnota": "180000 CZK", "Deal - Obchodník": "Marie Svobodová", "Deal - Fáze": "ORDER SENT", "Deal - Stav": "open", "Deal - Operátor": "Kratochvílová Pavla" }
         ];
 
@@ -106,7 +105,37 @@
             return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(num);
         };
 
-        // --- FORMÁTOVÁNÍ PŮVODNÍ ČÁSTKY S PŘEPOČTEM PRO TABULKU ---
+        // --- FORMÁTOVÁNÍ MULTI-MĚNOVÝCH HODNOT PRO MANAŽERSKÉ PŘEHLEDY ---
+        const formatMultiCurrency = (currMap, consolidatedCzk = null) => {
+            const parts = [];
+            
+            if (currMap.CZK && currMap.CZK > 0) {
+                parts.push(new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(currMap.CZK));
+            }
+            if (currMap.EUR && currMap.EUR > 0) {
+                parts.push(new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(currMap.EUR));
+            }
+            if (currMap.HUF && currMap.HUF > 0) {
+                parts.push(new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(currMap.HUF));
+            }
+            
+            if (parts.length === 0) return '0 Kč';
+            
+            const joinedOriginals = parts.join(' + ');
+            
+            const keys = Object.keys(currMap).filter(k => currMap[k] > 0);
+            if (keys.length === 1 && keys[0] === 'CZK') {
+                return joinedOriginals;
+            }
+            
+            if (consolidatedCzk !== null && consolidatedCzk > 0) {
+                return `${joinedOriginals} <span class="text-[11px] text-slate-400 block font-normal">(~${formatCZK(consolidatedCzk)})</span>`;
+            }
+            
+            return joinedOriginals;
+        };
+
+        // --- FORMÁTOVÁNÍ PŮVODNÍ ČÁSTKY S PŘEPOČTEM PRO SEZNAM OBCHODŮ ---
         const formatOriginalValue = (deal) => {
             if (deal.originalCurrency && deal.originalCurrency !== 'CZK') {
                 let formattedOrig = '';
@@ -158,6 +187,7 @@
                    s.includes('commission');
         };
 
+        // --- DETEKCE IN PROCESS FÁZE ---
         const isInProcessPhase = (stage) => {
             const s = String(stage).toLowerCase().trim();
             return s.includes('in process');
@@ -178,17 +208,153 @@
             return s.includes('order sent') || s.includes('objednávka odeslána');
         };
 
-        // --- INTELIGENTNÍ NORMALIZAČNÍ FUNKCE PRO PIPEDRIVE EXPORTY S PŘEPOČTEM MĚN ---
+        // --- POMOCNÁ FUNKCE PRO ODSTRANĚNÍ SEPARÁTORŮ TISÍCŮ (FOOLPROOF ČIŠTĚNÍ ČÍSEL) ---
+        const cleanNumber = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            
+            let s = String(val).trim();
+            
+            // Odstranění textových zkratek měn, aby nepletly detekci desítkových separátorů
+            s = s.replace(/[a-zA-Z€FtKčKČ]/g, '').trim();
+            
+            // Odstranění mezer (např. "8 500 000" -> "8500000")
+            s = s.replace(/\s/g, '');
+            
+            const lastComma = s.lastIndexOf(',');
+            const lastDot = s.lastIndexOf('.');
+            
+            if (lastComma !== -1 && lastDot !== -1) {
+                if (lastComma > lastDot) {
+                    s = s.replace(/\./g, '').replace(',', '.');
+                } else {
+                    s = s.replace(/,/g, '');
+                }
+            } else if (lastComma !== -1) {
+                const charsAfter = s.length - lastComma - 1;
+                if (charsAfter === 2 || charsAfter === 1) {
+                    s = s.replace(',', '.');
+                } else {
+                    s = s.replace(/,/g, '');
+                }
+            } else if (lastDot !== -1) {
+                const firstDot = s.indexOf('.');
+                if (firstDot !== lastDot) {
+                    s = s.replace(/\./g, '');
+                } else {
+                    const charsAfter = s.length - lastDot - 1;
+                    if (charsAfter === 3 && s.length > 5) {
+                        s = s.replace(/\./g, '');
+                    }
+                }
+            }
+            
+            s = s.replace(/[^\d.-]/g, '');
+            
+            const parsed = parseFloat(s);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        // --- LINGVISTICKÉ POMOCNÉ FUNKCE PRO AUTOMATICKOU DETEKCI REGIONŮ ---
+        const slovakNamesMatch = (agent) => {
+            if (!agent) return false;
+            const text = agent.toLowerCase();
+            
+            const slovakKeys = [
+                'šebo', 'sebo', 'korman', 'janák', 'janak', 'ján', 'jozef', 
+                'illesová', 'illesova', 'illes', 'slinčáková', 'slincakova', 'lovisek', 'lovíšek', 
+                'ganzarčík', 'ganzarcik', 'matus', 'matúš'
+            ];
+
+            return slovakKeys.some(key => text.includes(key));
+        };
+
+        const hungarianNamesMatch = (agent) => {
+            if (!agent) return false;
+            const text = agent.toLowerCase();
+            
+            const hungarianKeys = [
+                'nemeth', 'németh', 'kovacs', 'kovács', 'szabó', 'szabo', 
+                'horvath', 'horváth', 'budapest', 'kft', ' bt.'
+            ];
+
+            return hungarianKeys.some(key => text.includes(key));
+        };
+
+        // --- BULETPROOF CSV PARSER S DETEKCÍ SEPARÁTORU (ČÁRKA VS STŘEDNÍK) ---
+        const parseCSV = (text) => {
+            let separator = ',';
+            const firstLine = text.split('\n')[0];
+            if (firstLine.includes(';')) {
+                separator = ';';
+            }
+            
+            const lines = text.split(/\r?\n/);
+            const result = [];
+            if (lines.length === 0 || !lines[0].trim()) return [];
+            
+            const headers = parseCSVLine(lines[0], separator);
+            
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const currentLine = parseCSVLine(lines[i], separator);
+                if (currentLine.length === 0) continue;
+                
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = currentLine[index] !== undefined ? currentLine[index] : '';
+                });
+                result.push(row);
+            }
+            return result;
+        };
+
+        const parseCSVLine = (line, separator) => {
+            const result = [];
+            let start = 0;
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                if (line[i] === '"') {
+                    inQuotes = !inQuotes;
+                } else if (line[i] === separator && !inQuotes) {
+                    let field = line.slice(start, i).trim();
+                    if (field.startsWith('"') && field.endsWith('"')) {
+                        field = field.slice(1, -1);
+                    }
+                    result.push(field.replace(/""/g, '"'));
+                    start = i + 1;
+                }
+            }
+            let lastField = line.slice(start).trim();
+            if (lastField.startsWith('"') && lastField.endsWith('"')) {
+                lastField = lastField.slice(1, -1);
+            }
+            result.push(lastField.replace(/""/g, '"'));
+            return result;
+        };
+
+        // --- DETEKTOR KÓDOVÁNÍ (Automaticky přepíná mezi UTF-8 a českým Windows-1250) ---
+        const decodeText = (arrayBuffer) => {
+            const uint8 = new Uint8Array(arrayBuffer);
+            const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+            try {
+                return utf8Decoder.decode(uint8);
+            } catch (e) {
+                const winDecoder = new TextDecoder('windows-1250');
+                return winDecoder.decode(uint8);
+            }
+        };
+
+        // --- INTELIGENTNÍ NORMALIZAČNÍ FUNKCE S DETEKCÍ MĚNY PODLE OSOB A JAZYKA ---
         const normalizePipedriveData = (rawRows) => {
-            // Aktuální fixní směnný kurz pro sjednocení na CZK
             const EXCHANGE_RATES = {
                 'CZK': 1.0,
-                'EUR': 25.20,  // 1 EUR = 25,20 Kč
-                'HUF': 0.063   // 100 HUF = 6,30 Kč (1 HUF = 0,063 Kč)
+                'EUR': 25.20,
+                'HUF': 0.063
             };
 
             return rawRows.map(row => {
-                // OPRAVENÁ VYHLEDÁVACÍ FUNKCE HLAVIČEK (Preferuje nejprve absolutní přesnost, čímž eliminuje záměnu 'obchod' a 'obchodník')
                 const getVal = (possibleKeys) => {
                     // Krok 1: Hledání přesné shody po očištění (case-insensitive)
                     let foundKey = Object.keys(row).find(k => {
@@ -205,7 +371,7 @@
                             const cleanK = k.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
                             return possibleKeys.some(pk => {
                                 const cleanPk = pk.toLowerCase().trim().replace(/^deal\s*-\s*/g, '');
-                                if (cleanK === 'obchodník' && cleanPk === 'obchod') return false; // Guard proti kolizi
+                                if (cleanK === 'obchodník' && cleanPk === 'obchod') return false;
                                 return cleanK.includes(cleanPk) || cleanPk.includes(cleanK);
                             });
                         });
@@ -216,34 +382,6 @@
                 const title = getVal(['Deal - Název', 'Název', 'Title', 'Subject', 'Deal Name', 'Obchod']) || 'Bez názvu';
                 const rawValue = getVal(['Deal - Hodnota', 'Hodnota', 'Value', 'Amount', 'Částka']);
                 
-                // Určení původní měny (hledá ve sloupci měny, popř. přímo v řetězci hodnoty)
-                let detectedCurrency = 'CZK';
-                const currencyCol = getVal(['Měna', 'Currency', 'Deal - Měna', 'Deal - Currency']);
-                if (currencyCol) {
-                    const cUpper = String(currencyCol).toUpperCase().trim();
-                    if (cUpper.includes('EUR') || cUpper.includes('€')) detectedCurrency = 'EUR';
-                    else if (cUpper.includes('HUF') || cUpper.includes('FT')) detectedCurrency = 'HUF';
-                } else if (rawValue !== null && rawValue !== undefined) {
-                    const valStr = String(rawValue).toUpperCase().trim();
-                    if (valStr.includes('EUR') || valStr.includes('€')) detectedCurrency = 'EUR';
-                    else if (valStr.includes('HUF') || valStr.includes('FT')) detectedCurrency = 'HUF';
-                }
-
-                // Extrakce pouze číselné hodnoty
-                let originalValue = 0;
-                if (rawValue !== null && rawValue !== undefined) {
-                    if (typeof rawValue === 'number') {
-                        originalValue = rawValue;
-                    } else {
-                        originalValue = parseFloat(String(rawValue).replace(/[^\d.,-]/g, '').replace(',', '.'));
-                    }
-                }
-                if (isNaN(originalValue)) originalValue = 0;
-
-                // Přepočet na CZK podle definovaného směnného kurzu
-                const rate = EXCHANGE_RATES[detectedCurrency] || 1.0;
-                const valueInCZK = originalValue * rate;
-
                 const owner = getVal(['Deal - Vlastník', 'Vlastník', 'Owner', 'Přiřazeno uživateli']) || 'Neznámý';
                 const agent = getVal(['Deal - Obchodník', 'Obchodník', 'Salesperson']) || owner;
                 const operator = getVal(['Deal - Operátor', 'Operátor', 'Operator']) || '';
@@ -252,6 +390,40 @@
                 const statusRaw = String(getVal(['Deal - Stav', 'Stav', 'Status']) || 'open').toLowerCase().trim();
                 const lostReason = getVal(['Důvod ztráty', 'Lost reason', 'Důvody ztráty', 'Důvod prohry']) || '';
                 const addTime = getVal(['Čas vytvoření', 'Add time', 'Datum vytvoření', 'Created', 'Vytvořeno']) || '';
+
+                let detectedCurrency = 'CZK';
+                
+                if (rawValue !== null && rawValue !== undefined) {
+                    const valStr = String(rawValue).toUpperCase().trim();
+                    if (valStr.includes('EUR') || valStr.includes('€')) detectedCurrency = 'EUR';
+                    else if (valStr.includes('HUF') || valStr.includes('FT')) detectedCurrency = 'HUF';
+                    else if (valStr.includes('CZK') || valStr.includes('KČ')) detectedCurrency = 'CZK';
+                }
+
+                if (detectedCurrency === 'CZK') {
+                    const currencyCol = getVal(['Měna', 'Currency', 'Deal - Měna', 'Deal - Currency']);
+                    if (currencyCol) {
+                        const cUpper = String(currencyCol).toUpperCase().trim();
+                        if (cUpper.includes('EUR') || cUpper.includes('€')) detectedCurrency = 'EUR';
+                        else if (cUpper.includes('HUF') || cUpper.includes('FT')) detectedCurrency = 'HUF';
+                        else if (cUpper.includes('CZK') || cUpper.includes('KČ')) detectedCurrency = 'CZK';
+                    }
+                }
+
+                if (detectedCurrency === 'CZK') {
+                    const isSlovak = slovakNamesMatch(agent);
+                    const isHungarian = hungarianNamesMatch(agent);
+
+                    if (isSlovak) {
+                        detectedCurrency = 'EUR';
+                    } else if (isHungarian) {
+                        detectedCurrency = 'HUF';
+                    }
+                }
+
+                const originalValue = cleanNumber(rawValue);
+                const rate = EXCHANGE_RATES[detectedCurrency] || 1.0;
+                const valueInCZK = originalValue * rate;
 
                 let status = 'open';
                 if (statusRaw.includes('won') || statusRaw.includes('vyhr') || statusRaw.includes('získ') || statusRaw.includes('úspěch')) {
@@ -262,7 +434,7 @@
 
                 return { 
                     title, 
-                    value: valueInCZK, // Primární hodnota je pro všechny manažerské výpočty sjednocená v CZK
+                    value: valueInCZK,
                     originalValue,
                     originalCurrency: detectedCurrency,
                     owner: agent,
@@ -276,45 +448,88 @@
             });
         };
 
-        // --- ZPRACOVÁNÍ EXCEL / CSV SOUBORU ---
+        // --- GLOBÁLNÍ ZPRACOVÁNÍ SOUBORŮ ---
         const handleFileUpload = (file) => {
             if (!file) return;
+            const fileName = file.name.toLowerCase();
             const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    if (json.length === 0) {
-                        showNotification("Nahrávaný soubor neobsahuje žádná data.", "error");
-                        return;
-                    }
 
-                    state.deals = normalizePipedriveData(json);
-                    state.ownerFilter = 'all';
-                    state.statusFilter = 'all';
-                    state.searchTerm = '';
-                    
-                    showNotification(`Úspěšně naimportováno ${state.deals.length} obchodů!`, "success");
-                    render();
-                } catch (err) {
-                    showNotification("Chyba při čtení souboru. Použijte stažený CSV nebo XLSX export.", "error");
-                    console.error(err);
-                }
-            };
-            reader.readAsArrayBuffer(file);
+            if (fileName.endsWith('.csv')) {
+                reader.onload = (e) => {
+                    try {
+                        const text = decodeText(e.target.result);
+                        const json = parseCSV(text);
+                        
+                        if (json.length === 0) {
+                            showNotification("Nahrávaný CSV soubor neobsahuje žádná data.", "error");
+                            return;
+                        }
+
+                        state.deals = normalizePipedriveData(json);
+                        state.ownerFilter = 'all';
+                        state.statusFilter = 'all';
+                        state.searchTerm = '';
+                        
+                        showNotification(`Úspěšně naimportováno ${state.deals.length} obchodů z CSV (s kódováním češtiny)!`, "success");
+                        render();
+                    } catch (err) {
+                        showNotification("Chyba při parsování CSV souboru.", "error");
+                        console.error(err);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+                        
+                        if (json.length === 0) {
+                            showNotification("Nahrávaný Excel soubor neobsahuje žádná data.", "error");
+                            return;
+                        }
+
+                        state.deals = normalizePipedriveData(json);
+                        state.ownerFilter = 'all';
+                        state.statusFilter = 'all';
+                        state.searchTerm = '';
+                        
+                        showNotification(`Úspěšně naimportováno ${state.deals.length} obchodů z Excelu!`, "success");
+                        render();
+                    } catch (err) {
+                        showNotification("Chyba při čtení Excel souboru.", "error");
+                        console.error(err);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
         };
 
         // --- VÝPOČET STATISTIK S PŘESNÝM KALKULAČNÍM MODELEM ---
         const getStatsAndFilteredData = () => {
+            const uniqueOwners = Array.from(new Set(state.deals.map(d => d.owner))).sort();
+            
+            // Mapování vybraného vlastníka přes stabilní index
+            const selectedOwner = state.ownerFilter === 'all' ? 'all' : uniqueOwners[parseInt(state.ownerFilter)];
+
             const filtered = state.deals.filter(deal => {
-                const matchesSearch = deal.title.toLowerCase().includes(state.searchTerm.toLowerCase()) || 
-                                      deal.owner.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-                                      deal.operator.toLowerCase().includes(state.searchTerm.toLowerCase());
-                const matchesOwner = state.ownerFilter === 'all' || deal.owner === state.ownerFilter;
+                // Podpora pro vyhledávání (s ochranou proti přeložení "Vebrová" -> "bagel")
+                const searchLower = state.searchTerm.toLowerCase();
+                let matchesSearch = deal.title.toLowerCase().includes(searchLower) || 
+                                      deal.owner.toLowerCase().includes(searchLower) ||
+                                      deal.operator.toLowerCase().includes(searchLower);
+                
+                // Překladačový fallback: pokud uživatel hledá "bagel" a obchodník je "Vebrová Dagmar"
+                if (!matchesSearch && searchLower.includes('bagel')) {
+                    if (deal.owner.toLowerCase().includes('vebrová') || deal.owner.toLowerCase().includes('dagmar')) {
+                        matchesSearch = true;
+                    }
+                }
+
+                const matchesOwner = state.ownerFilter === 'all' || deal.owner === selectedOwner;
                 const matchesStatus = state.statusFilter === 'all' || deal.status === state.statusFilter;
                 return matchesSearch && matchesOwner && matchesStatus;
             });
@@ -322,7 +537,14 @@
             const total = filtered.length;
             let totalValue = 0;
 
-            // Fázové počítadlo pro statistiky Call Centra a Pipeline
+            // Mapy pro reálné kódované měny v celkových přehledech
+            let totalValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+            let conversionsValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+            let inProcessValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+            let meetingValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+            let conditionsValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+            let orderSentValueByCurr = { CZK: 0, EUR: 0, HUF: 0 };
+
             let conversionsCount = 0;
             let conversionsValue = 0;
 
@@ -340,74 +562,109 @@
 
             filtered.forEach(d => {
                 totalValue += d.value;
+                const curr = d.originalCurrency || 'CZK';
+                const origVal = d.originalValue || 0;
+                
+                totalValueByCurr[curr] = (totalValueByCurr[curr] || 0) + origVal;
                 
                 if (isConversionPhase(d.stage)) {
                     conversionsCount++;
                     conversionsValue += d.value;
+                    conversionsValueByCurr[curr] = (conversionsValueByCurr[curr] || 0) + origVal;
                 } else if (isInProcessPhase(d.stage)) {
                     inProcessCount++;
                     inProcessValue += d.value;
+                    inProcessValueByCurr[curr] = (inProcessValueByCurr[curr] || 0) + origVal;
                 } else if (isMeetingPhase(d.stage)) {
                     meetingCount++;
                     meetingValue += d.value;
+                    meetingValueByCurr[curr] = (meetingValueByCurr[curr] || 0) + origVal;
                 } else if (isConditionsSentPhase(d.stage)) {
                     conditionsCount++;
                     conditionsValue += d.value;
+                    conditionsValueByCurr[curr] = (conditionsValueByCurr[curr] || 0) + origVal;
                 } else if (isOrderSentPhase(d.stage)) {
                     orderSentCount++;
                     orderSentValue += d.value;
+                    orderSentValueByCurr[curr] = (orderSentValueByCurr[curr] || 0) + origVal;
                 }
             });
 
-            // Výpočty procentuálních částí z celku
             const conversionRate = total > 0 ? Math.round((conversionsCount / total) * 100) : 0;
             const inProcessRate = total > 0 ? Math.round((inProcessCount / total) * 100) : 0;
             const meetingRate = total > 0 ? Math.round((meetingCount / total) * 100) : 0;
             const conditionsRate = total > 0 ? Math.round((conditionsCount / total) * 100) : 0;
             const orderSentRate = total > 0 ? Math.round((orderSentCount / total) * 100) : 0;
 
-            // OPRAVENÝ PRŮMĚR: Vypočítává se pouze z úspěšně zkonvertovaných kontraktů (požadavek uživatele)
             const avgValue = conversionsCount > 0 ? Math.round(conversionsValue / conversionsCount) : 0;
 
-            // Výkon obchodníků
+            // Výkon obchodníků s rozpadem na konkrétní měny
             const repsMap = {};
             filtered.forEach(d => {
                 if (!repsMap[d.owner]) {
-                    repsMap[d.owner] = { name: d.owner, wonVal: 0, lostVal: 0, openVal: 0, count: 0, totalVal: 0, convCount: 0 };
+                    repsMap[d.owner] = { 
+                        name: d.owner, 
+                        wonVal: 0, lostVal: 0, openVal: 0, count: 0, totalVal: 0, convCount: 0,
+                        wonValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        openValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        lostValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        totalValByCurr: { CZK: 0, EUR: 0, HUF: 0 }
+                    };
                 }
+                const curr = d.originalCurrency || 'CZK';
+                const origVal = d.originalValue || 0;
+                
                 repsMap[d.owner].count++;
                 repsMap[d.owner].totalVal += d.value;
+                repsMap[d.owner].totalValByCurr[curr] = (repsMap[d.owner].totalValByCurr[curr] || 0) + origVal;
+                
                 if (isConversionPhase(d.stage)) {
                     repsMap[d.owner].wonVal += d.value;
                     repsMap[d.owner].convCount++;
+                    repsMap[d.owner].wonValByCurr[curr] = (repsMap[d.owner].wonValByCurr[curr] || 0) + origVal;
                 } else {
                     repsMap[d.owner].openVal += d.value;
+                    repsMap[d.owner].openValByCurr[curr] = (repsMap[d.owner].openValByCurr[curr] || 0) + origVal;
                 }
                 if (d.status === 'lost') {
                     repsMap[d.owner].lostVal += d.value;
+                    repsMap[d.owner].lostValByCurr[curr] = (repsMap[d.owner].lostValByCurr[curr] || 0) + origVal;
                 }
             });
             const ownerStats = Object.values(repsMap).sort((a, b) => b.totalVal - a.totalVal);
 
-            // Výkon operátorů
+            // Výkon operátorů s rozpadem na konkrétní měny
             const operatorMap = {};
             filtered.forEach(d => {
                 if (!d.operator) return;
                 if (!operatorMap[d.operator]) {
-                    operatorMap[d.operator] = { name: d.operator, wonVal: 0, lostVal: 0, openVal: 0, count: 0, totalVal: 0, convCount: 0 };
+                    operatorMap[d.operator] = { 
+                        name: d.operator, 
+                        wonVal: 0, lostVal: 0, openVal: 0, count: 0, totalVal: 0, convCount: 0,
+                        wonValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        openValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        lostValByCurr: { CZK: 0, EUR: 0, HUF: 0 },
+                        totalValByCurr: { CZK: 0, EUR: 0, HUF: 0 }
+                    };
                 }
+                const curr = d.originalCurrency || 'CZK';
+                const origVal = d.originalValue || 0;
+                
                 operatorMap[d.operator].count++;
                 operatorMap[d.operator].totalVal += d.value;
+                operatorMap[d.operator].totalValByCurr[curr] = (operatorMap[d.operator].totalValByCurr[curr] || 0) + origVal;
+                
                 if (isConversionPhase(d.stage)) {
                     operatorMap[d.operator].wonVal += d.value;
                     operatorMap[d.operator].convCount++;
+                    operatorMap[d.operator].wonValByCurr[curr] = (operatorMap[d.operator].wonValByCurr[curr] || 0) + origVal;
                 } else {
                     operatorMap[d.operator].openVal += d.value;
+                    operatorMap[d.operator].openValByCurr[curr] = (operatorMap[d.operator].openValByCurr[curr] || 0) + origVal;
                 }
             });
             const operatorStats = Object.values(operatorMap).sort((a, b) => b.totalVal - a.totalVal);
 
-            // Celkové řazení zbylých fází pro přehlednost
             const stageMap = {};
             filtered.forEach(d => {
                 if (!stageMap[d.stage]) {
@@ -418,8 +675,6 @@
             });
             const stageStats = Object.values(stageMap).sort((a, b) => b.value - a.value);
 
-            const uniqueOwners = Array.from(new Set(state.deals.map(d => d.owner))).sort();
-
             return {
                 filtered,
                 uniqueOwners,
@@ -429,20 +684,25 @@
                 kpi: {
                     total,
                     totalValue,
+                    totalValueByCurr,
                     conversionsCount,
                     conversionsValue,
+                    conversionsValueByCurr,
                     conversionRate,
                     inProcessCount,
                     inProcessValue,
-                    inProcessRate,
+                    inProcessValueByCurr,
+                    inProcessRate, // --- PŘIDÁNA OPRAVA ZDE ---
                     meetingCount,
                     meetingValue,
+                    meetingValueByCurr,
                     meetingRate,
                     conditionsCount,
                     conditionsValue,
                     conditionsRate,
                     orderSentCount,
                     orderSentValue,
+                    orderSentValueByCurr,
                     orderSentRate,
                     avgValue
                 }
@@ -451,7 +711,6 @@
 
         // --- MANIPULACE SE STAVEM ---
         const loadSample = () => {
-            // Musíme vzorová data nechat normalizovat, aby se přepočetly měny
             state.deals = normalizePipedriveData(SAMPLE_DATA);
             state.ownerFilter = 'all';
             state.statusFilter = 'all';
@@ -467,7 +726,7 @@
             render();
         };
 
-        // --- RENDEROVÁNÍ ROZHRANÍ (DOM Renderer) ---
+        // --- RENDEROVÁNÍ ROZHRANÍ ---
         const render = () => {
             const mainContent = document.getElementById('main-content');
             const headerActions = document.getElementById('header-actions');
@@ -478,7 +737,7 @@
                     <button id="btn-clear" class="text-slate-400 hover:text-white transition text-sm flex items-center gap-1.5 px-3 py-2 border border-slate-700 hover:border-slate-500 rounded-lg">
                         ${Icons.Refresh} Vyčistit data
                     </button>
-                    <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow border border-slate-700 flex items-center gap-2 transition">
+                    <label class="cursor-pointer bg-[#01c180] hover:bg-[#00ad70] text-white text-sm font-semibold px-4 py-2 rounded-lg shadow flex items-center gap-2 transition">
                         ${Icons.Upload} <span>Nahrát export</span>
                         <input type="file" id="file-input-header" class="hidden" accept=".xlsx, .xls, .csv" />
                     </label>
@@ -495,86 +754,50 @@
                 mainContent.innerHTML = `
                     <div class="max-w-3xl mx-auto mt-8">
                         <div class="text-center mb-10">
-                            <h2 class="text-2xl md:text-3xl font-bold text-slate-800 mb-3">Manažerské statistiky jedním kliknutím</h2>
+                            <h2 class="text-2xl md:text-3xl font-bold text-slate-800 mb-3">Úspěšnost Call centrum</h2>
                             <p class="text-slate-600 text-lg max-w-xl mx-auto">Přetáhněte sem exportovaný soubor z Pipedrive (XLSX, XLS nebo CSV) a ihned získejte statistiky úspěšnosti call centra.</p>
                         </div>
 
                         <!-- Drop zóna -->
                         <div id="drop-zone" class="border-3 border-dashed rounded-2xl p-10 text-center transition duration-200 cursor-pointer ${
-                            state.dragActive ? "border-emerald-500 bg-emerald-50/50" : "border-slate-300 bg-white hover:border-slate-400 shadow-sm"
+                            state.dragActive ? "border-[#01c180] bg-emerald-50/50" : "border-slate-300 bg-white hover:border-slate-400 shadow-sm"
                         }">
                             <div class="flex flex-col items-center pointer-events-none">
-                                <div class="p-4 bg-emerald-50 text-emerald-600 rounded-full mb-4">
+                                <div class="p-4 bg-emerald-50 text-[#01c180] rounded-full mb-4">
                                     ${Icons.FileSpreadsheet}
                                 </div>
                                 <p class="text-lg font-semibold text-slate-800 mb-2">Přetáhněte sem exportovaný soubor</p>
                                 <p class="text-sm text-slate-500 mb-6">Podporujeme CZK, EUR i HUF s automatickým přepočtem</p>
                                 
                                 <div class="flex flex-wrap gap-4 justify-center pointer-events-auto">
-                                    <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
+                                    <label class="cursor-pointer bg-[#01c180] hover:bg-[#00ad70] text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
                                         ${Icons.Upload} Vybrat soubor z PC
                                         <input type="file" id="file-input-main" accept=".xlsx, .xls, .csv" class="hidden" />
                                     </label>
-                                    
-                                    <button id="btn-load-sample" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
-                                        ${Icons.Refresh} Načíst ukázková data
-                                    </button>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Instrukce -->
-                        <div class="mt-12 bg-white rounded-xl p-6 shadow-sm border border-slate-100">
-                            <h3 class="text-md font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                                ${Icons.Info} Jak získat správný soubor z Pipedrive?
-                            </h3>
-                            <ol class="list-decimal list-inside text-sm text-slate-600 space-y-2">
-                                <li>Přihlaste se do účtu <strong>Pipedrive</strong>.</li>
-                                <li>Přejdete do sekce <strong>Obchody (Deals)</strong>.</li>
-                                <li>Vpravo nahoře klikněte na tři tečky a vyberte <strong>Exportovat výsledky filtru</strong>.</li>
-                                <li>Zvolte formát <strong>Excel (.xlsx)</strong> nebo <strong>CSV</strong> a stáhněte soubor.</li>
-                                <li>Stažený soubor jednoduše přetáhněte do zóny výše!</li>
-                            </ol>
                         </div>
                     </div>
                 `;
 
                 const dropZone = document.getElementById('drop-zone');
                 const fileInputMain = document.getElementById('file-input-main');
-                const btnLoadSample = document.getElementById('btn-load-sample');
 
-                btnLoadSample.addEventListener('click', loadSample);
                 fileInputMain.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
-
-                const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
-                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-                    dropZone.addEventListener(evt, preventDefaults);
-                });
-
-                dropZone.addEventListener('dragenter', () => { dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50'); });
-                dropZone.addEventListener('dragover', () => { dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50'); });
-                dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50'); });
-                dropZone.addEventListener('drop', (e) => {
-                    dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
-                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                        handleFileUpload(e.dataTransfer.files[0]);
-                    }
-                });
-
             } else {
                 // --- STRÁNKA S AKTIVNÍM DASHBOARDEM ---
                 const data = getStatsAndFilteredData();
 
                 mainContent.innerHTML = `
-                    <!-- PANEL PRO KURZOVNÍ LÍSTEK (INFO O PŘEPOČTU) -->
+                    <!-- PANEL PRO KURZOVNÍ LÍSTEK -->
                     <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
                         <div class="flex items-center gap-2.5">
                             <span class="p-2 bg-slate-700 rounded-lg text-amber-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
                             </span>
                             <div>
-                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Automatický přepočet měn</h4>
-                                <p class="text-xs text-slate-300">Všechny finanční hodnoty v grafech a přehledech byly sjednoceny do měny <strong>CZK (Kč)</strong>.</p>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Inteligentní přepočet a detekce měn</h4>
+                                <p class="text-xs text-slate-300">Všechny slovenské EUR i maďarské HUF obchody byly automaticky rozpoznány na základě obchodníků a sjednoceny do <strong>CZK (Kč)</strong>.</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-4 text-xs font-mono shrink-0 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-700">
@@ -589,17 +812,17 @@
                         <!-- Záložky -->
                         <div class="flex border-b border-slate-100 pb-3 gap-2 overflow-x-auto">
                             <button id="tab-dashboard" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
-                                state.activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                                state.activeTab === 'dashboard' ? 'bg-[#01c180] text-white shadow' : 'text-slate-600 hover:bg-slate-50'
                             }">
                                 ${Icons.BarChart} Výkon Call Centra
                             </button>
                             <button id="tab-salespeople" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
-                                state.activeTab === 'salespeople' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                                state.activeTab === 'salespeople' ? 'bg-[#01c180] text-white shadow' : 'text-slate-600 hover:bg-slate-50'
                             }">
                                 ${Icons.Users} Obchodníci & Operátoři
                             </button>
                             <button id="tab-list" class="px-4 py-2 font-semibold text-sm rounded-lg transition shrink-0 flex items-center gap-2 ${
-                                state.activeTab === 'list' ? 'bg-emerald-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+                                state.activeTab === 'list' ? 'bg-[#01c180] text-white shadow' : 'text-slate-600 hover:bg-slate-50'
                             }">
                                 ${Icons.FileSpreadsheet} Seznam Obchodů (${data.filtered.length})
                             </button>
@@ -628,8 +851,8 @@
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                                 >
                                     <option value="all">Všichni obchodníci (${data.uniqueOwners.length})</option>
-                                    ${data.uniqueOwners.map(owner => `
-                                        <option value="${owner}" ${state.ownerFilter === owner ? 'selected' : ''}>${owner}</option>
+                                    ${data.uniqueOwners.map((owner, idx) => `
+                                        <option value="${idx}" ${state.ownerFilter === String(idx) ? 'selected' : ''}>${owner}</option>
                                     `).join('')}
                                 </select>
                             </div>
@@ -654,15 +877,15 @@
                         </div>
                     </div>
 
-                    <!-- KPI KARTY S METRIKAMI CALL CENTRA (PŘEPOČTENO V CZK) -->
+                    <!-- KPI KARTY S METRIKAMI CALL CENTRA (S MULTI-MĚNOVÝM DETAILEM) -->
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                             <div>
                                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Úspěšné Konverze</p>
-                                <h3 class="text-lg md:text-2xl font-bold text-emerald-600">${data.kpi.conversionsCount} ks</h3>
-                                <p class="text-xs text-slate-500">${formatCZK(data.kpi.conversionsValue)}</p>
+                                <h3 class="text-lg md:text-2xl font-bold text-[#01c180]">${data.kpi.conversionsCount} ks</h3>
+                                <p class="text-xs text-slate-500">${formatMultiCurrency(data.kpi.conversionsValueByCurr, data.kpi.conversionsValue)}</p>
                             </div>
-                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">${Icons.CheckCircle}</div>
+                            <div class="p-3 bg-emerald-50 text-[#01c180] rounded-xl">${Icons.CheckCircle}</div>
                         </div>
 
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
@@ -687,7 +910,7 @@
                             <div>
                                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Odložené (In Process)</p>
                                 <h3 class="text-lg md:text-2xl font-bold text-amber-600">${data.kpi.inProcessRate} %</h3>
-                                <p class="text-xs text-slate-500">${data.kpi.inProcessCount} ks (${formatCZK(data.kpi.inProcessValue)})</p>
+                                <p class="text-xs text-slate-500">${data.kpi.inProcessCount} ks <span class="block">${formatMultiCurrency(data.kpi.inProcessValueByCurr, data.kpi.inProcessValue)}</span></p>
                             </div>
                             <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">${Icons.FileSpreadsheet}</div>
                         </div>
@@ -710,7 +933,7 @@
                                 </h3>
                                 
                                 <div class="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-xl mb-6">
-                                    <span class="text-5xl font-black text-emerald-600 mb-2">${data.kpi.conversionRate}%</span>
+                                    <span class="text-5xl font-black text-[#01c180] mb-2">${data.kpi.conversionRate}%</span>
                                     <span class="text-xs text-slate-500 uppercase tracking-wider font-semibold text-center">Konverzní poměr z celku</span>
                                     <p class="text-[11px] text-slate-400 text-center mt-3 leading-relaxed">
                                         Procento klientů úspěšně převedených do fází: Signed Order, Invoice sent, Regular payment, Partial, Overdue, Paid, Commission.
@@ -723,8 +946,8 @@
                                         <span class="font-bold text-slate-800">${data.kpi.total} ks</span>
                                     </div>
                                     <div class="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                                        <span class="text-emerald-600 font-bold">Kladné konverze:</span>
-                                        <span class="font-bold text-emerald-600">${data.kpi.conversionsCount} ks</span>
+                                        <span class="text-[#01c180] font-bold">Kladné konverze:</span>
+                                        <span class="font-bold text-[#01c180]">${data.kpi.conversionsCount} ks</span>
                                     </div>
                                     <div class="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
                                         <span class="text-amber-600 font-semibold">Odložené (In Process):</span>
@@ -732,7 +955,7 @@
                                     </div>
                                     <div class="flex justify-between items-center text-sm">
                                         <span class="text-slate-500 font-medium">Průměrná konverze (CZK):</span>
-                                        <span class="font-bold text-emerald-600">${formatCZK(data.kpi.avgValue)}</span>
+                                        <span class="font-bold text-[#01c180]">${formatCZK(data.kpi.avgValue)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -797,10 +1020,6 @@
                                     <div>
                                         <div class="flex justify-between items-center mb-2 text-sm">
                                             <div>
-                                                <span class="font-bold text-slate-800">4. Objednávka k Podpisu (Order Sent)</span>
-                                                <span class="text-xs text-slate-400 block">Odeslaná objednávka připravená k uzavření</span>
-                                            </div>
-                                            <div class="text-right">
                                                 <span class="font-bold text-purple-500 text-lg">${data.kpi.orderSentRate}%</span>
                                                 <span class="text-xs text-slate-500 block">${data.kpi.orderSentCount} ks (${formatCZK(data.kpi.orderSentValue)})</span>
                                             </div>
@@ -814,16 +1033,16 @@
                                     <div>
                                         <div class="flex justify-between items-center mb-2 text-sm">
                                             <div>
-                                                <span class="font-bold text-emerald-600">5. Kladně Uzavřeno (Conversions)</span>
+                                                <span class="font-bold text-[#01c180]">5. Kladně Uzavřeno (Conversions)</span>
                                                 <span class="text-xs text-emerald-500 block">Signed, Paid, Commission atd.</span>
                                             </div>
                                             <div class="text-right">
-                                                <span class="font-bold text-emerald-600 text-lg">${data.kpi.conversionRate}%</span>
+                                                <span class="font-bold text-[#01c180] text-lg">${data.kpi.conversionRate}%</span>
                                                 <span class="text-xs text-slate-500 block">${data.kpi.conversionsCount} ks (${formatCZK(data.kpi.conversionsValue)})</span>
                                             </div>
                                         </div>
                                         <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                                            <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: ${data.kpi.conversionRate}%"></div>
+                                            <div class="bg-[#01c180] h-full rounded-full transition-all duration-500" style="width: ${data.kpi.conversionRate}%"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -831,7 +1050,7 @@
                         </div>
                     `;
                 } else if (state.activeTab === 'salespeople') {
-                    // --- ZÁLOŽKA: OBCHODNÍCI A OPERÁTOŘI ---
+                    // --- ZÁLOŽKA: OBCHODNÍCI A OPERÁTOŘI (S PŮVODNÍMI MĚNAMI) ---
                     tabViewContainer.innerHTML = `
                         <div class="space-y-8">
                             <!-- Výsledky Obchodníků -->
@@ -843,9 +1062,9 @@
                                             <tr class="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider pb-3">
                                                 <th class="py-3 px-4">Obchodník</th>
                                                 <th class="py-3 px-4">Celkem případů</th>
-                                                <th class="py-3 px-4 text-emerald-600 font-semibold">Objem konverzí (CZK)</th>
-                                                <th class="py-3 px-4 text-emerald-600 font-semibold">Počet konverzí</th>
-                                                <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem (CZK)</th>
+                                                <th class="py-3 px-4 text-[#01c180] font-semibold">Objem konverzí (V měně obchodníka)</th>
+                                                <th class="py-3 px-4 text-[#01c180] font-semibold">Počet konverzí</th>
+                                                <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem</th>
                                                 <th class="py-3 px-4 font-semibold text-slate-700">Win Rate %</th>
                                             </tr>
                                         </thead>
@@ -856,14 +1075,14 @@
                                                     <tr class="hover:bg-slate-50/70 transition">
                                                         <td class="py-4 px-4 font-bold text-slate-900">${rep.name}</td>
                                                         <td class="py-4 px-4">${rep.count} ks</td>
-                                                        <td class="py-4 px-4 text-emerald-600 font-semibold">${formatCZK(rep.wonVal)}</td>
-                                                        <td class="py-4 px-4 text-emerald-600 font-bold">${rep.convCount} ks</td>
-                                                        <td class="py-4 px-4 text-amber-600 font-medium">${formatCZK(rep.openVal)}</td>
+                                                        <td class="py-4 px-4 text-[#01c180] font-semibold">${formatMultiCurrency(rep.wonValByCurr, rep.wonVal)}</td>
+                                                        <td class="py-4 px-4 text-[#01c180] font-bold">${rep.convCount} ks</td>
+                                                        <td class="py-4 px-4 text-amber-600 font-medium">${formatMultiCurrency(rep.openValByCurr, rep.openVal)}</td>
                                                         <td class="py-4 px-4">
                                                             <div class="flex items-center gap-2">
                                                                 <span class="font-bold w-10 text-right">${winRate}%</span>
                                                                 <div class="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
-                                                                    <div class="bg-emerald-500 h-full rounded-full" style="width: ${winRate}%"></div>
+                                                                    <div class="bg-[#01c180] h-full rounded-full" style="width: ${winRate}%"></div>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -885,9 +1104,9 @@
                                                 <tr class="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider pb-3">
                                                     <th class="py-3 px-4">Operátor</th>
                                                     <th class="py-3 px-4">Zajištěno obchodů</th>
-                                                    <th class="py-3 px-4 text-emerald-600 font-semibold">Získaný objem (CZK)</th>
-                                                    <th class="py-3 px-4 text-emerald-600 font-semibold">Počet konverzí</th>
-                                                    <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem (CZK)</th>
+                                                    <th class="py-3 px-4 text-[#01c180] font-semibold">Získaný objem</th>
+                                                    <th class="py-3 px-4 text-[#01c180] font-semibold">Počet konverzí</th>
+                                                    <th class="py-3 px-4 font-semibold text-slate-700">Rozpracovaný objem</th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-slate-50 text-slate-700">
@@ -895,9 +1114,9 @@
                                                     <tr class="hover:bg-slate-50/70 transition">
                                                         <td class="py-4 px-4 font-bold text-slate-900">${op.name}</td>
                                                         <td class="py-4 px-4">${op.count} ks</td>
-                                                        <td class="py-4 px-4 text-emerald-600 font-semibold">${formatCZK(op.wonVal)}</td>
-                                                        <td class="py-4 px-4 text-emerald-600 font-bold">${op.convCount} ks</td>
-                                                        <td class="py-4 px-4 text-amber-600 font-medium">${formatCZK(op.openVal)}</td>
+                                                        <td class="py-4 px-4 text-[#01c180] font-semibold">${formatMultiCurrency(op.wonValByCurr, op.wonVal)}</td>
+                                                        <td class="py-4 px-4 text-[#01c180] font-bold">${op.convCount} ks</td>
+                                                        <td class="py-4 px-4 text-amber-600 font-medium">${formatMultiCurrency(op.openValByCurr, op.openVal)}</td>
                                                     </tr>
                                                 `).join('')}
                                             </tbody>
@@ -960,7 +1179,7 @@
                     `;
                 }
 
-                // --- PŘIPOJENÍ EVENTŮ PRO DASHBOARD ---
+                // --- PŘIPOJENÍ EVENTŮ ---
                 document.getElementById('tab-dashboard').addEventListener('click', () => { state.activeTab = 'dashboard'; render(); });
                 document.getElementById('tab-salespeople').addEventListener('click', () => { state.activeTab = 'salespeople'; render(); });
                 document.getElementById('tab-list').addEventListener('click', () => { state.activeTab = 'list'; render(); });
@@ -996,6 +1215,31 @@
                 }
             }
         };
+
+        // --- BEZPEČNÝ GLOBÁLNÍ DRAG & DROP PRO CELÉ OKNO ---
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            const dropZone = document.getElementById('drop-zone');
+            if (dropZone) dropZone.classList.add('border-[#01c180]', 'bg-emerald-50/50');
+        });
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (e.clientX === 0 && e.clientY === 0) {
+                const dropZone = document.getElementById('drop-zone');
+                if (dropZone) dropZone.classList.remove('border-[#01c180]', 'bg-emerald-50/50');
+            }
+        });
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dropZone = document.getElementById('drop-zone');
+            if (dropZone) dropZone.classList.remove('border-[#01c180]', 'bg-emerald-50/50');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
 
         // --- PRVNÍ SPUŠTĚNÍ ---
         render();
