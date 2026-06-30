@@ -692,7 +692,7 @@
                     inProcessCount,
                     inProcessValue,
                     inProcessValueByCurr,
-                    inProcessRate, // --- PŘIDÁNA OPRAVA ZDE ---
+                    inProcessRate,
                     meetingCount,
                     meetingValue,
                     meetingValueByCurr,
@@ -1020,6 +1020,10 @@
                                     <div>
                                         <div class="flex justify-between items-center mb-2 text-sm">
                                             <div>
+                                                <span class="font-bold text-slate-800">4. Objednávka k Podpisu (Order Sent)</span>
+                                                <span class="text-xs text-slate-400 block">Odeslaná objednávka připravená k uzavření</span>
+                                            </div>
+                                            <div class="text-right">
                                                 <span class="font-bold text-purple-500 text-lg">${data.kpi.orderSentRate}%</span>
                                                 <span class="text-xs text-slate-500 block">${data.kpi.orderSentCount} ks (${formatCZK(data.kpi.orderSentValue)})</span>
                                             </div>
